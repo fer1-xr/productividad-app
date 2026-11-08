@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Clock, Trash2 } from 'lucide-react'
+import { Plus, Clock, Trash2, Calendar } from 'lucide-react'
 
 interface ScheduleItem {
   id: string
@@ -160,8 +160,4 @@ export default function SchedulePage() {
       </div>
     </div>
   )
-}
-
-function Calendar() {
-  return <div>📅</div>
 }

@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import {
   CalendarDays,
   CheckCircle2,
+  Gauge,
   LayoutDashboard,
   Menu,
   RotateCcw,
@@ -33,9 +34,10 @@ const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'Seguimiento',
     items: [
+      { name: 'Plan semanal', path: '/schedule', icon: CalendarDays },
+      { name: 'Rendimiento por rol', path: '/performance', icon: Gauge },
       { name: 'Hábitos', path: '/habits', icon: CheckCircle2 },
       { name: 'Metas', path: '/goals', icon: Target },
-      { name: 'Cronograma', path: '/schedule', icon: CalendarDays },
     ],
   },
   {

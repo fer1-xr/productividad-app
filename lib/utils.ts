@@ -55,3 +55,17 @@ export function greeting(date: Date = new Date()) {
   if (h < 19) return 'Buenas tardes'
   return 'Buenas noches'
 }
+
+/** Suma días a una fecha ISO (YYYY-MM-DD). */
+export function addDaysISO(iso: string, days: number) {
+  const d = parseISODate(iso)
+  d.setDate(d.getDate() + days)
+  return toISODate(d)
+}
+
+/** Lunes de la semana de la fecha dada (YYYY-MM-DD). */
+export function mondayOf(date: Date = new Date()) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  d.setDate(d.getDate() - weekdayIndex(d))
+  return toISODate(d)
+}

@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   Flame,
+  Gauge,
   Plus,
   Quote,
   Target,
@@ -17,8 +18,10 @@ import {
 } from 'lucide-react'
 import { Badge, Card, CardHeader, EmptyState, Progress, StatCard } from './components/ui'
 import { ExpenseBreakdown } from './components/expense-breakdown'
-import { EVENT_COLOR_CLASS, GOAL_TYPE_LABEL, goalStatus, habitStreak, useStore } from '@/lib/store'
-import { cn, formatDate, formatMoney, greeting, isSameMonth, toISODate, weekdayIndex } from '@/lib/utils'
+import { GOAL_TYPE_LABEL, goalStatus, habitStreak, useStore } from '@/lib/store'
+import { blockRange, currentSlot, performance, ROLE_COLOR_CLASS } from '@/lib/planner'
+import { RolePerformanceList } from './components/planner-ui'
+import { cn, formatDate, formatMoney, greeting, isSameMonth, mondayOf, toISODate, weekdayIndex } from '@/lib/utils'
 
 function CardLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -29,11 +32,10 @@ function CardLink({ href, children }: { href: string; children: React.ReactNode 
 }
 
 export default function DashboardPage() {
-  const { habits, transactions, goals, schedule, notes, toggleHabit } = useStore()
+  const { habits, transactions, goals, notes, toggleHabit, roles, weeklyGoals, blocks } = useStore()
 
   const now = new Date()
   const today = toISODate(now)
-  const nowTime = now.toTimeString().slice(0, 5)
 
   // Hábitos
   const dailyHabits = habits.filter((h) => h.frequency === 'daily')
@@ -52,11 +54,15 @@ export default function DashboardPage() {
   const avgProgress = goals.length ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0
   const topGoals = [...activeGoals].sort((a, b) => b.progress - a.progress).slice(0, 4)
 
-  // Agenda
-  const todayEvents = schedule
-    .filter((e) => e.day === weekdayIndex(now))
-    .sort((a, b) => a.startTime.localeCompare(b.startTime))
-  const nextEvent = todayEvents.find((e) => e.endTime > nowTime)
+  // Agenda (plan semanal)
+  const weekStart = mondayOf(now)
+  const slotNow = currentSlot(now) ?? (now.getHours() < 7 ? -1 : 99)
+  const roleById = new Map(roles.map((r) => [r.id, r]))
+  const todayEvents = blocks
+    .filter((b) => b.weekStart === weekStart && b.day === weekdayIndex(now))
+    .sort((a, b) => a.start - b.start)
+  const nextEvent = todayEvents.find((e) => e.start + e.span > slotNow)
+  const weekPerf = performance(weeklyGoals, blocks, weekStart)
 
   // Nota destacada
   const featured = notes.find((n) => n.isPinned && n.category === 'quote') ?? notes.find((n) => n.isPinned)
@@ -65,7 +71,7 @@ export default function DashboardPage() {
     { label: 'Hábito', href: '/habits?nuevo', icon: CheckCircle2 },
     { label: 'Transacción', href: '/finances?nuevo', icon: Wallet },
     { label: 'Meta', href: '/goals?nuevo', icon: Target },
-    { label: 'Evento', href: '/schedule?nuevo', icon: CalendarDays },
+    { label: 'Plan semanal', href: '/schedule', icon: CalendarDays },
   ]
 
   return (
@@ -133,10 +139,10 @@ export default function DashboardPage() {
           value={
             <>
               {todayEvents.length}
-              <span className="text-base font-medium text-subtle"> eventos</span>
+              <span className="text-base font-medium text-subtle"> bloques</span>
             </>
           }
-          hint={nextEvent ? `Próximo: ${nextEvent.startTime} · ${nextEvent.title}` : 'No quedan eventos hoy'}
+          hint={nextEvent ? `Siguiente: ${blockRange(nextEvent).split(' – ')[0]} · ${nextEvent.title}` : 'No quedan bloques hoy'}
         />
       </div>
 
@@ -201,27 +207,29 @@ export default function DashboardPage() {
             action={<CardLink href="/schedule">Semana</CardLink>}
           />
           {todayEvents.length === 0 ? (
-            <EmptyState icon={CalendarDays} title="Día libre" description="No hay eventos programados para hoy." />
+            <EmptyState icon={CalendarDays} title="Día libre" description="No hay bloques programados para hoy." action={<Link href="/schedule" className="btn-secondary">Planificar</Link>} />
           ) : (
             <ol className="space-y-1 p-3">
               {todayEvents.map((e) => {
-                const past = e.endTime <= nowTime
-                const live = e.startTime <= nowTime && e.endTime > nowTime
+                const past = e.start + e.span <= slotNow
+                const live = e.start <= slotNow && e.start + e.span > slotNow
+                const color = ROLE_COLOR_CLASS[roleById.get(e.roleId)?.color ?? 1]
                 return (
                   <li
                     key={e.id}
                     className={cn(
                       'flex items-center gap-3 rounded-lg border-l-[3px] px-3 py-2.5',
-                      EVENT_COLOR_CLASS[e.color].bar,
-                      live ? EVENT_COLOR_CLASS[e.color].soft : 'bg-transparent',
-                      past && 'opacity-50',
+                      color.bar,
+                      live ? color.soft : 'bg-transparent',
+                      past && 'opacity-60',
                     )}
                   >
-                    <span className="tabular w-24 shrink-0 text-xs text-subtle">
-                      {e.startTime} – {e.endTime}
+                    <span className="tabular w-24 shrink-0 text-xs text-subtle">{blockRange(e)}</span>
+                    <span className={cn('min-w-0 flex-1 truncate text-sm font-medium', e.done && 'text-subtle line-through')}>
+                      {e.title}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{e.title}</span>
                     {live && <Badge tone="primary">Ahora</Badge>}
+                    {e.done && <Check size={14} className="text-success" aria-label="Cumplido" />}
                   </li>
                 )
               })}
@@ -229,6 +237,19 @@ export default function DashboardPage() {
           )}
         </Card>
       </div>
+
+      {/* Roles de la semana */}
+      <Card>
+        <CardHeader
+          title="Rendimiento por rol · esta semana"
+          description={weekPerf.pct === null ? 'Aún no planificaste esta semana' : `Global: ${weekPerf.pct}% · ${weekPerf.goalsDone}/${weekPerf.goalsTotal} metas cumplidas`}
+          icon={Gauge}
+          action={<CardLink href="/performance">Ver detalle</CardLink>}
+        />
+        <div className="p-5">
+          <RolePerformanceList roles={roles} goals={weeklyGoals} blocks={blocks} weekStart={weekStart} columns={4} />
+        </div>
+      </Card>
 
       {/* Fila 2: metas + gastos */}
       <div className="grid gap-6 lg:grid-cols-3">

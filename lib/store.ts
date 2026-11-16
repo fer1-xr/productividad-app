@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { daysAgo, toISODate, uid } from './utils'
+import { seedPlanner, SLOT_COUNT, type PlannerTask, type Role, type TimeBlock, type WeeklyGoal } from './planner'
 
 /* ------------------------------------------------------------------ */
 /* Tipos                                                               */
@@ -43,18 +44,6 @@ export interface Goal {
   progress: number
   priority: Priority
   dueDate: string
-}
-
-export type EventColor = 1 | 2 | 3 | 4 | 5 | 7
-
-export interface ScheduleItem {
-  id: string
-  title: string
-  startTime: string
-  endTime: string
-  /** 0 = Lunes … 6 = Domingo */
-  day: number
-  color: EventColor
 }
 
 export type NoteCategory = 'note' | 'quote' | 'reminder'
@@ -168,21 +157,6 @@ function seed() {
     },
   ]
 
-  const schedule: ScheduleItem[] = []
-  for (let day = 0; day < 5; day++) {
-    schedule.push(
-      { id: `s${day}a`, title: 'Meditación', startTime: '06:00', endTime: '06:30', day, color: 1 },
-      { id: `s${day}b`, title: 'Ejercicio', startTime: '06:30', endTime: '07:30', day, color: 3 },
-      { id: `s${day}c`, title: 'Trabajo', startTime: '09:00', endTime: '17:00', day, color: 7 },
-    )
-  }
-  schedule.push(
-    { id: 's1d', title: 'Clase de inglés', startTime: '18:30', endTime: '19:30', day: 1, color: 2 },
-    { id: 's3d', title: 'Clase de inglés', startTime: '18:30', endTime: '19:30', day: 3, color: 2 },
-    { id: 's5a', title: 'Compras semanales', startTime: '10:00', endTime: '11:30', day: 5, color: 4 },
-    { id: 's6a', title: 'Revisión semanal', startTime: '19:00', endTime: '19:45', day: 6, color: 5 },
-  )
-
   const notes: Note[] = [
     {
       id: 'n1',
@@ -210,7 +184,7 @@ function seed() {
     },
   ]
 
-  return { habits, transactions, goals, schedule, notes }
+  return { habits, transactions, goals, notes, ...seedPlanner() }
 }
 
 /* ------------------------------------------------------------------ */
@@ -223,8 +197,11 @@ interface AppState {
   habits: Habit[]
   transactions: Transaction[]
   goals: Goal[]
-  schedule: ScheduleItem[]
   notes: Note[]
+  roles: Role[]
+  mission: string
+  weeklyGoals: WeeklyGoal[]
+  blocks: TimeBlock[]
 
   addHabit: (h: Omit<Habit, 'id' | 'completions' | 'createdAt'>) => void
   toggleHabit: (id: string, date?: string) => void
@@ -237,8 +214,16 @@ interface AppState {
   setGoalProgress: (id: string, progress: number) => void
   deleteGoal: (id: string) => void
 
-  addScheduleItem: (s: WithoutId<ScheduleItem>) => void
-  deleteScheduleItem: (id: string) => void
+  setMission: (text: string) => void
+  renameRole: (id: string, name: string) => void
+  saveWeeklyGoal: (g: Omit<WeeklyGoal, 'id'> & { id?: string }) => void
+  deleteWeeklyGoal: (id: string) => void
+  toggleWeeklyGoal: (id: string) => void
+  togglePlannerTask: (goalId: string, taskId: string) => void
+  copyGoalsFromWeek: (fromWeek: string, toWeek: string) => number
+  saveBlock: (b: Omit<TimeBlock, 'id'> & { id?: string }) => void
+  toggleBlock: (id: string) => void
+  deleteBlock: (id: string) => void
 
   addNote: (n: Omit<Note, 'id' | 'createdAt'>) => void
   toggleNotePin: (id: string) => void
@@ -249,7 +234,7 @@ interface AppState {
 
 export const useStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       ...seed(),
 
       addHabit: (h) =>
@@ -279,8 +264,53 @@ export const useStore = create<AppState>()(
         })),
       deleteGoal: (id) => set((s) => ({ goals: s.goals.filter((g) => g.id !== id) })),
 
-      addScheduleItem: (item) => set((s) => ({ schedule: [...s.schedule, { ...item, id: uid() }] })),
-      deleteScheduleItem: (id) => set((s) => ({ schedule: s.schedule.filter((i) => i.id !== id) })),
+      setMission: (mission) => set({ mission }),
+      renameRole: (id, name) => set((s) => ({ roles: s.roles.map((r) => (r.id === id ? { ...r, name } : r)) })),
+      saveWeeklyGoal: ({ id, ...g }) =>
+        set((s) =>
+          id
+            ? { weeklyGoals: s.weeklyGoals.map((x) => (x.id === id ? { ...g, id } : x)) }
+            : { weeklyGoals: [...s.weeklyGoals, { ...g, id: uid() }] },
+        ),
+      deleteWeeklyGoal: (id) =>
+        set((s) => ({
+          weeklyGoals: s.weeklyGoals.filter((g) => g.id !== id),
+          blocks: s.blocks.map((b) => (b.goalId === id ? { ...b, goalId: undefined } : b)),
+        })),
+      toggleWeeklyGoal: (id) =>
+        set((s) => ({ weeklyGoals: s.weeklyGoals.map((g) => (g.id === id ? { ...g, done: !g.done } : g)) })),
+      togglePlannerTask: (goalId, taskId) =>
+        set((s) => ({
+          weeklyGoals: s.weeklyGoals.map((g) =>
+            g.id !== goalId
+              ? g
+              : { ...g, tasks: g.tasks.map((t: PlannerTask) => (t.id === taskId ? { ...t, done: !t.done } : t)) },
+          ),
+        })),
+      copyGoalsFromWeek: (fromWeek, toWeek) => {
+        const s = get()
+        const taken = new Set(s.weeklyGoals.filter((g) => g.weekStart === toWeek).map((g) => `${g.roleId}-${g.slot}`))
+        const copies = s.weeklyGoals
+          .filter((g) => g.weekStart === fromWeek && g.title.trim() && !taken.has(`${g.roleId}-${g.slot}`))
+          .map((g) => ({
+            ...g,
+            id: uid(),
+            weekStart: toWeek,
+            done: false,
+            tasks: g.tasks.map((t) => ({ ...t, id: uid(), done: false })),
+          }))
+        set({ weeklyGoals: [...s.weeklyGoals, ...copies] })
+        return copies.length
+      },
+      saveBlock: ({ id, ...b }) =>
+        set((s) => {
+          const clean = { ...b, span: Math.max(1, Math.min(b.span, SLOT_COUNT - b.start)) }
+          return id
+            ? { blocks: s.blocks.map((x) => (x.id === id ? { ...clean, id } : x)) }
+            : { blocks: [...s.blocks, { ...clean, id: uid() }] }
+        }),
+      toggleBlock: (id) => set((s) => ({ blocks: s.blocks.map((b) => (b.id === id ? { ...b, done: !b.done } : b)) })),
+      deleteBlock: (id) => set((s) => ({ blocks: s.blocks.filter((b) => b.id !== id) })),
 
       addNote: (n) => set((s) => ({ notes: [{ ...n, id: uid(), createdAt: toISODate() }, ...s.notes] })),
       toggleNotePin: (id) =>
@@ -291,8 +321,17 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'productividad-pro',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      // v1 → v2: el cronograma de eventos se reemplaza por el planificador semanal
+      migrate: (persisted, version) => {
+        const state = { ...(persisted as Record<string, unknown>) }
+        if (version < 2) {
+          delete state.schedule
+          Object.assign(state, seedPlanner())
+        }
+        return state as unknown as AppState
+      },
       skipHydration: true,
     },
   ),
@@ -356,25 +395,6 @@ export const EXPENSE_COLOR: Record<string, string> = {
   Entretenimiento: 'bg-series-4',
   Servicios: 'bg-series-5',
   Otros: 'bg-subtle',
-}
-
-export const EVENT_COLORS: { value: EventColor; label: string }[] = [
-  { value: 1, label: 'Azul' },
-  { value: 3, label: 'Verde' },
-  { value: 7, label: 'Violeta' },
-  { value: 2, label: 'Naranja' },
-  { value: 4, label: 'Amarillo' },
-  { value: 5, label: 'Rosa' },
-]
-
-/** Clases estáticas (Tailwind necesita verlas completas). */
-export const EVENT_COLOR_CLASS: Record<EventColor, { bar: string; soft: string; dot: string }> = {
-  1: { bar: 'border-l-series-1', soft: 'bg-series-1/10', dot: 'bg-series-1' },
-  2: { bar: 'border-l-series-2', soft: 'bg-series-2/10', dot: 'bg-series-2' },
-  3: { bar: 'border-l-series-3', soft: 'bg-series-3/10', dot: 'bg-series-3' },
-  4: { bar: 'border-l-series-4', soft: 'bg-series-4/10', dot: 'bg-series-4' },
-  5: { bar: 'border-l-series-5', soft: 'bg-series-5/10', dot: 'bg-series-5' },
-  7: { bar: 'border-l-series-7', soft: 'bg-series-7/10', dot: 'bg-series-7' },
 }
 
 export function summarizeExpenses(transactions: Transaction[]) {

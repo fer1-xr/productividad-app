@@ -129,9 +129,11 @@ export default function DashboardPage() {
             <Badge>
               <Moon size={12} /> {ritual.sleepHours} h de sueño
             </Badge>
-            <Badge>
-              <Zap size={12} /> Energía {ritual.energyMorning}/5
-            </Badge>
+            {ritual.energyMorning !== null && (
+              <Badge>
+                <Zap size={12} /> Energía {ritual.energyMorning}/5
+              </Badge>
+            )}
             {ritual.word && <Badge tone="primary">“{ritual.word}”</Badge>}
             <Link href="/ritual" className="btn-ghost px-2 py-1 text-xs">
               Editar ritual

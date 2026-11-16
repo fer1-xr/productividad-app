@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, type FormEvent } from 'react'
-import { Check, CheckCircle2, Flame, Plus, Trash2, Trophy } from 'lucide-react'
+import { BarChart3, Check, CheckCircle2, Flame, Plus, Trash2, Trophy } from 'lucide-react'
 import { Badge, Card, EmptyState, Field, FormActions, Modal, PageHeader, Segmented, StatCard } from '../components/ui'
 import { FREQUENCY_LABEL, HABIT_CATEGORIES, habitStreak, useStore, type Frequency } from '@/lib/store'
 import { cn, daysAgo, parseISODate, toISODate, WEEKDAYS_SHORT, weekdayIndex } from '@/lib/utils'
@@ -99,7 +100,7 @@ export default function HabitsPage() {
                   <li key={h.id} className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium">{h.name}</p>
+                        <Link href={`/habits/${h.id}`} className="text-sm font-medium hover:text-primary hover:underline">{h.name}</Link>
                         <Badge>{h.category}</Badge>
                         <Badge tone="primary">{FREQUENCY_LABEL[h.frequency]}</Badge>
                       </div>
@@ -141,6 +142,9 @@ export default function HabitsPage() {
                           <Flame size={12} /> {streak} {streak === 1 ? 'día' : 'días'}
                         </Badge>
                       </span>
+                      <Link href={`/habits/${h.id}`} className="btn-icon" aria-label={`Ver estadísticas de ${h.name}`} title="Ver estadísticas">
+                        <BarChart3 size={16} />
+                      </Link>
                       <button
                         onClick={() => confirm(`¿Eliminar "${h.name}"?`) && deleteHabit(h.id)}
                         className="btn-icon hover:text-danger"

@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { BedDouble, Lightbulb, Moon, Sunrise, Zap } from 'lucide-react'
+import { BedDouble, Lightbulb, Moon, Sunrise, Watch, Zap } from 'lucide-react'
+import { WatchImportModal } from './watch-import'
 import { Card, CardHeader, EmptyState, PageHeader, Segmented, StatCard } from '../components/ui'
 import { useStore } from '@/lib/store'
 import { cn, daysAgo, formatDate, parseISODate, WEEKDAYS_SHORT, weekdayIndex } from '@/lib/utils'
@@ -79,6 +80,7 @@ function BarChart({
 export default function SleepPage() {
   const { rituals } = useStore()
   const [range, setRange] = useState<Range>('14')
+  const [importOpen, setImportOpen] = useState(false)
   const n = Number(range)
 
   const byDate = new Map(rituals.map((r) => [r.date, r]))
@@ -92,20 +94,21 @@ export default function SleepPage() {
   const logged = days.map((d) => d.r).filter((r): r is DailyRitual => !!r)
   const avgHours = avg(logged.map((r) => r.sleepHours))
   const avgQuality = avg(logged.map((r) => r.sleepQuality))
-  const avgEnergy = avg(logged.map((r) => r.energyMorning))
+  const withEnergy = logged.filter((r): r is DailyRitual & { energyMorning: number } => r.energyMorning !== null)
+  const avgEnergy = avg(withEnergy.map((r) => r.energyMorning))
   const goodNights = logged.length ? Math.round((logged.filter((r) => r.sleepHours >= TARGET_HOURS).length / logged.length) * 100) : null
 
   // Patrones
-  const enough = logged.filter((r) => r.sleepHours >= TARGET_HOURS)
-  const short = logged.filter((r) => r.sleepHours < TARGET_HOURS)
+  const enough = withEnergy.filter((r) => r.sleepHours >= TARGET_HOURS)
+  const short = withEnergy.filter((r) => r.sleepHours < TARGET_HOURS)
   const eEnough = avg(enough.map((r) => r.energyMorning))
   const eShort = avg(short.map((r) => r.energyMorning))
   const calm = logged.filter((r) => r.wakeUps === 0)
   const restless = logged.filter((r) => r.wakeUps > 0)
   const qCalm = avg(calm.map((r) => r.sleepQuality))
   const qRestless = avg(restless.map((r) => r.sleepQuality))
-  const mitWithEnergy = logged.filter((r) => r.energyMorning >= 4)
-  const mitLowEnergy = logged.filter((r) => r.energyMorning <= 2)
+  const mitWithEnergy = withEnergy.filter((r) => r.energyMorning >= 4)
+  const mitLowEnergy = withEnergy.filter((r) => r.energyMorning <= 2)
   const pct = (xs: DailyRitual[]) => (xs.length ? Math.round((xs.filter((r) => r.mitDone).length / xs.length) * 100) : null)
 
   const patterns = [
@@ -131,6 +134,9 @@ export default function SleepPage() {
         actions={
           <>
             <Segmented ariaLabel="Período" value={range} onChange={setRange} options={[{ value: '14', label: '14 días' }, { value: '30', label: '30 días' }]} />
+            <button onClick={() => setImportOpen(true)} className="btn-secondary">
+              <Watch size={16} /> Importar del reloj
+            </button>
             <Link href="/ritual" className="btn-primary">
               <Sunrise size={16} /> Registrar hoy
             </Link>
@@ -180,6 +186,37 @@ export default function SleepPage() {
           </Card>
         </>
       )}
+      <Card className="mt-6">
+        <CardHeader title="Conectar tu reloj Xiaomi" description="Redmi Watch, Smart Band y otros con Mi Fitness o Zepp Life" icon={Watch} />
+        <div className="grid gap-px bg-border md:grid-cols-3">
+          <div className="bg-surface p-5">
+            <p className="text-sm font-semibold">Hoy: importar el archivo</p>
+            <p className="mt-1 text-sm text-muted">
+              Exporta tus datos desde tu cuenta Xiaomi y súbelos aquí. Detectamos el formato de Xiaomi automáticamente y
+              actualizamos tus noches.
+            </p>
+            <button onClick={() => setImportOpen(true)} className="btn-secondary mt-3">
+              <Watch size={16} /> Importar ahora
+            </button>
+          </div>
+          <div className="bg-surface p-5">
+            <p className="text-sm font-semibold">Sincronización automática</p>
+            <p className="mt-1 text-sm text-muted">
+              Xiaomi no ofrece una API pública. En Android, Mi Fitness puede enviar el sueño a <span className="font-medium text-foreground">Health Connect</span>,
+              pero solo una app instalada en el teléfono puede leerlo: hace falta una versión Android de esta app.
+            </p>
+          </div>
+          <div className="bg-surface p-5">
+            <p className="text-sm font-semibold">Alternativa con servicio externo</p>
+            <p className="mt-1 text-sm text-muted">
+              Plataformas de datos de salud (de pago) conectan relojes de muchas marcas y reenvían los datos a la web.
+              Requiere guardar los datos en un servidor (p. ej. Supabase) e iniciar sesión.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {importOpen && <WatchImportModal onClose={() => setImportOpen(false)} />}
     </>
   )
 }

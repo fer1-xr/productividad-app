@@ -12,8 +12,8 @@ export interface DailyRitual {
   sleepQuality: number
   /** Veces que te despertaste en la noche */
   wakeUps: number
-  /** 1–5 al empezar el día */
-  energyMorning: number
+  /** 1–5 al empezar el día (null si la noche vino importada del reloj) */
+  energyMorning: number | null
   /** 1–5 al cerrar el día (opcional) */
   energyEvening: number | null
   focus: string
@@ -21,6 +21,10 @@ export interface DailyRitual {
   mitDone: boolean
   gratitude: string[]
   word: string
+  /** De dónde vienen los datos de sueño */
+  source?: 'manual' | 'watch'
+  /** Minutos de sueño profundo (si el reloj lo informa) */
+  deepMinutes?: number
 }
 
 export const SCALE_LABEL = ['', 'Muy baja', 'Baja', 'Normal', 'Buena', 'Excelente']
@@ -140,4 +144,14 @@ export function seedWellbeing() {
 
 export function todayKey() {
   return toISODate()
+}
+
+/* ---------------------------- Importación desde el reloj ---------------------------- */
+
+export interface ImportedNight {
+  date: string
+  hours: number
+  quality: number
+  wakeUps?: number
+  deepMinutes?: number
 }

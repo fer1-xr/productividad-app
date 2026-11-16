@@ -69,3 +69,12 @@ export function mondayOf(date: Date = new Date()) {
   d.setDate(d.getDate() - weekdayIndex(d))
   return toISODate(d)
 }
+
+/** 3.000.000 Gs · $1.250 · 12,5 kg */
+export function formatAmount(n: number, unit = '') {
+  const [int, dec] = Math.abs(n).toFixed(2).split('.')
+  const body = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (dec !== '00' ? `,${dec}` : '')
+  const sign = n < 0 ? '−' : ''
+  if (!unit) return sign + body
+  return unit === '$' ? `${sign}$${body}` : `${sign}${body} ${unit}`
+}

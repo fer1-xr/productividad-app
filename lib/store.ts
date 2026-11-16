@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { daysAgo, toISODate, uid } from './utils'
-import { seedWellbeing, type DailyRitual, type WheelEntry } from './wellbeing'
+import { seedWellbeing, type DailyRitual, type ImportedNight, type WheelEntry } from './wellbeing'
 import { seedPlanner, SLOT_COUNT, type PlannerTask, type Role, type TimeBlock, type WeeklyGoal } from './planner'
 
 /* ------------------------------------------------------------------ */
@@ -45,7 +45,45 @@ export interface Goal {
   progress: number
   priority: Priority
   dueDate: string
+  /** Meta numérica: objetivo, valor inicial y aportes registrados */
+  metric?: GoalMetric
+  /** Pasos / hitos para llegar a la meta */
+  steps?: GoalStep[]
 }
+
+export interface GoalEntry {
+  id: string
+  date: string
+  amount: number
+  note: string
+}
+
+export interface GoalMetric {
+  target: number
+  start: number
+  unit: string
+  entries: GoalEntry[]
+}
+
+export interface GoalStep {
+  id: string
+  text: string
+  done: boolean
+}
+
+/** Valor actual de una meta numérica */
+export function metricCurrent(m: GoalMetric) {
+  return m.start + m.entries.reduce((a, e) => a + e.amount, 0)
+}
+
+/** El progreso se deriva de los aportes o de los pasos; si no, es manual. */
+export function computeProgress(g: Goal) {
+  if (g.metric && g.metric.target > 0) return Math.max(0, Math.min(100, Math.round((metricCurrent(g.metric) / g.metric.target) * 100)))
+  if (g.steps && g.steps.length) return Math.round((g.steps.filter((x) => x.done).length / g.steps.length) * 100)
+  return g.progress
+}
+
+const withProgress = (g: Goal): Goal => ({ ...g, progress: computeProgress(g) })
 
 export type NoteCategory = 'note' | 'quote' | 'reminder'
 
@@ -62,6 +100,12 @@ export interface Note {
 /* Datos de ejemplo                                                    */
 /* ------------------------------------------------------------------ */
 
+/** Historial más antiguo (desde el día `from` hasta el 150) con una probabilidad de cumplimiento, determinista. */
+const history = (seed: number, prob: number, from: number) =>
+  Array.from({ length: 151 - from }, (_, i) => i + from)
+    .filter((i) => ((i * 9301 + seed * 49297) % 233280) / 233280 < prob)
+    .map((i) => daysAgo(i))
+
 const range = (n: number, skip: number[] = []) =>
   Array.from({ length: n }, (_, i) => i)
     .filter((i) => !skip.includes(i))
@@ -76,8 +120,8 @@ function seed() {
       description: '10 minutos de meditación matutina',
       frequency: 'daily',
       category: 'Salud',
-      completions: range(24),
-      createdAt: daysAgo(30),
+      completions: [...range(24), ...history(1, 0.8, 25)],
+      createdAt: daysAgo(150),
     },
     {
       id: 'h2',
@@ -85,8 +129,8 @@ function seed() {
       description: '30 minutos de actividad física',
       frequency: 'daily',
       category: 'Salud',
-      completions: range(13, [0]),
-      createdAt: daysAgo(30),
+      completions: [...range(13, [0]), ...history(2, 0.6, 14)],
+      createdAt: daysAgo(150),
     },
     {
       id: 'h3',
@@ -94,8 +138,8 @@ function seed() {
       description: '30 minutos de lectura',
       frequency: 'daily',
       category: 'Aprendizaje',
-      completions: range(8, [3]),
-      createdAt: daysAgo(30),
+      completions: [...range(8, [3]), ...history(3, 0.55, 9)],
+      createdAt: daysAgo(150),
     },
     {
       id: 'h4',
@@ -103,8 +147,8 @@ function seed() {
       description: 'Revisar agenda y prioridades',
       frequency: 'daily',
       category: 'Productividad',
-      completions: range(6, [0, 2]),
-      createdAt: daysAgo(30),
+      completions: [...range(6, [0, 2]), ...history(4, 0.45, 7)],
+      createdAt: daysAgo(150),
     },
   ]
 
@@ -122,10 +166,16 @@ function seed() {
   const goals: Goal[] = [
     {
       id: 'g1',
-      title: 'Ahorrar $10.000',
+      title: 'Fondo de ahorro de 3.000.000',
       description: 'Fondo de emergencia y ahorro anual',
       type: 'annual',
-      progress: 60,
+      progress: 25,
+      metric: {
+        target: 3000000,
+        start: 500000,
+        unit: 'Gs',
+        entries: [{ id: 'e1', date: daysAgo(20), amount: 250000, note: 'Aguinaldo' }],
+      },
       priority: 'high',
       dueDate: `${year}-12-31`,
     },
@@ -135,6 +185,13 @@ function seed() {
       description: 'Certificación profesional en línea',
       type: 'annual',
       progress: 40,
+      steps: [
+        { id: 's1', text: 'Inscribirme en el curso', done: true },
+        { id: 's2', text: 'Módulo 1: fundamentos', done: true },
+        { id: 's3', text: 'Módulo 2: práctica', done: false },
+        { id: 's4', text: 'Proyecto final', done: false },
+        { id: 's5', text: 'Rendir el examen', done: false },
+      ],
       priority: 'high',
       dueDate: `${year}-12-15`,
     },
@@ -215,6 +272,11 @@ interface AppState {
 
   addGoal: (g: WithoutId<Goal>) => void
   setGoalProgress: (id: string, progress: number) => void
+  addGoalEntry: (goalId: string, entry: Omit<GoalEntry, 'id'>) => void
+  deleteGoalEntry: (goalId: string, entryId: string) => void
+  toggleGoalStep: (goalId: string, stepId: string) => void
+  addGoalStep: (goalId: string, text: string) => void
+  deleteGoalStep: (goalId: string, stepId: string) => void
   deleteGoal: (id: string) => void
 
   setMission: (text: string) => void
@@ -235,6 +297,7 @@ interface AppState {
   saveRitual: (r: Omit<DailyRitual, 'id'>) => void
   toggleMit: (date: string) => void
   saveWheel: (entry: WheelEntry) => void
+  importSleep: (nights: ImportedNight[]) => { created: number; updated: number }
 
   resetDemo: () => void
 }
@@ -264,7 +327,41 @@ export const useStore = create<AppState>()(
       addTransaction: (t) => set((s) => ({ transactions: [{ ...t, id: uid() }, ...s.transactions] })),
       deleteTransaction: (id) => set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) })),
 
-      addGoal: (g) => set((s) => ({ goals: [...s.goals, { ...g, id: uid() }] })),
+      addGoal: (g) => set((s) => ({ goals: [...s.goals, withProgress({ ...g, id: uid() })] })),
+      addGoalEntry: (goalId, entry) =>
+        set((s) => ({
+          goals: s.goals.map((g) =>
+            g.id === goalId && g.metric
+              ? withProgress({ ...g, metric: { ...g.metric, entries: [...g.metric.entries, { ...entry, id: uid() }] } })
+              : g,
+          ),
+        })),
+      deleteGoalEntry: (goalId, entryId) =>
+        set((s) => ({
+          goals: s.goals.map((g) =>
+            g.id === goalId && g.metric
+              ? withProgress({ ...g, metric: { ...g.metric, entries: g.metric.entries.filter((e) => e.id !== entryId) } })
+              : g,
+          ),
+        })),
+      toggleGoalStep: (goalId, stepId) =>
+        set((s) => ({
+          goals: s.goals.map((g) =>
+            g.id === goalId && g.steps
+              ? withProgress({ ...g, steps: g.steps.map((x) => (x.id === stepId ? { ...x, done: !x.done } : x)) })
+              : g,
+          ),
+        })),
+      addGoalStep: (goalId, text) =>
+        set((s) => ({
+          goals: s.goals.map((g) =>
+            g.id === goalId ? withProgress({ ...g, steps: [...(g.steps ?? []), { id: uid(), text, done: false }] }) : g,
+          ),
+        })),
+      deleteGoalStep: (goalId, stepId) =>
+        set((s) => ({
+          goals: s.goals.map((g) => (g.id === goalId ? withProgress({ ...g, steps: (g.steps ?? []).filter((x) => x.id !== stepId) }) : g)),
+        })),
       setGoalProgress: (id, progress) =>
         set((s) => ({
           goals: s.goals.map((g) => (g.id === id ? { ...g, progress: Math.max(0, Math.min(100, progress)) } : g)),
@@ -333,6 +430,35 @@ export const useStore = create<AppState>()(
         }),
       toggleMit: (date) =>
         set((s) => ({ rituals: s.rituals.map((r) => (r.date === date ? { ...r, mitDone: !r.mitDone } : r)) })),
+      importSleep: (nights) => {
+        let created = 0
+        let updated = 0
+        const map = new Map(get().rituals.map((r) => [r.date, r]))
+        for (const n of nights) {
+          const prev = map.get(n.date)
+          const sleep = { sleepHours: n.hours, sleepQuality: n.quality, wakeUps: n.wakeUps ?? prev?.wakeUps ?? 0, deepMinutes: n.deepMinutes, source: 'watch' as const }
+          if (prev) {
+            map.set(n.date, { ...prev, ...sleep })
+            updated++
+          } else {
+            map.set(n.date, {
+              id: uid(),
+              date: n.date,
+              ...sleep,
+              energyMorning: null,
+              energyEvening: null,
+              focus: '',
+              mit: '',
+              mitDone: false,
+              gratitude: [],
+              word: '',
+            })
+            created++
+          }
+        }
+        set({ rituals: Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date)) })
+        return { created, updated }
+      },
       saveWheel: (entry) =>
         set((s) => ({
           wheel: [...s.wheel.filter((w) => w.month !== entry.month), entry].sort((a, b) => a.month.localeCompare(b.month)),

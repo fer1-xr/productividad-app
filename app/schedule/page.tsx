@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState, type FormEvent, type KeyboardEvent } from 'react'
-import { BookOpen, Check, ChevronDown, Compass, Copy, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { BellRing, CalendarPlus, Download, ExternalLink, Smartphone, BookOpen, Check, ChevronDown, Compass, Copy, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { Card, Field, Modal, PageHeader, Segmented } from '../components/ui'
 import { PctMeter, RoleDot, WeekNav } from '../components/planner-ui'
 import {
@@ -20,6 +20,8 @@ import {
   type WeeklyGoal,
 } from '@/lib/planner'
 import { useStore } from '@/lib/store'
+import { buildICS, downloadFile, googleCalendarUrl, REMINDER_MINUTES } from '@/lib/calendar'
+import { useReminderSettings } from '@/lib/use-reminders'
 import { addDaysISO, cn, mondayOf, parseISODate, uid, WEEKDAYS, WEEKDAYS_SHORT, weekdayIndex } from '@/lib/utils'
 
 const ROW_H = 30 // px por franja de 30 min
@@ -37,6 +39,7 @@ export default function PlannerPage() {
   const [showGuide, setShowGuide] = useState(false)
   const [mobileView, setMobileView] = useState<MobileView>('schedule')
   const [toast, setToast] = useState<string | null>(null)
+  const [syncOpen, setSyncOpen] = useState(false)
 
   const isCurrentWeek = weekStart === mondayOf()
   const todayIdx = weekdayIndex()
@@ -147,6 +150,9 @@ export default function PlannerPage() {
         </p>
         <div className="flex items-center gap-2">
           {toast && <span className="text-xs text-success">{toast}</span>}
+          <button onClick={() => setSyncOpen(true)} className="btn-secondary py-1.5 text-xs">
+            <CalendarPlus size={14} /> Calendario y avisos
+          </button>
           {prevHasGoals && freeGoalSlots > 0 && (
             <button onClick={copyPrevious} className="btn-secondary py-1.5 text-xs">
               <Copy size={14} /> Copiar metas de la semana anterior
@@ -309,6 +315,7 @@ export default function PlannerPage() {
           onClose={() => setGoalTarget(null)}
         />
       )}
+      {syncOpen && <SyncModal weekStart={weekStart} weekBlocks={weekBlocks} weekGoals={weekGoals} roles={roles} onClose={() => setSyncOpen(false)} />}
       {blockTarget && (
         <BlockModal
           key={`${blockTarget.day}-${blockTarget.start}-${blockTarget.block?.id ?? 'new'}`}
@@ -850,6 +857,18 @@ function BlockModal({
           </Field>
         </div>
         {invalid && <p className="-mt-2 text-xs text-danger">Ese horario ya está ocupado por otro bloque.</p>}
+        {existing && (
+          <a
+            href={googleCalendarUrl(existing, roles.find((r) => r.id === existing.roleId), weekGoals.find((g) => g.id === existing.goalId))}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 rounded-lg border bg-surface-2/50 px-3 py-2 text-sm hover:bg-surface-2"
+          >
+            <CalendarPlus size={16} className="text-primary" />
+            <span className="flex-1">Añadir a Google Calendar</span>
+            <ExternalLink size={14} className="text-subtle" />
+          </a>
+        )}
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <input type="checkbox" checked={done} onChange={(e) => setDone(e.target.checked)} className="h-4 w-4 accent-[rgb(var(--primary))]" />
           Cumplido
@@ -878,6 +897,83 @@ function BlockModal({
           </div>
         </div>
       </form>
+    </Modal>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Calendario y notificaciones                                         */
+/* ------------------------------------------------------------------ */
+
+function SyncModal({
+  weekStart,
+  weekBlocks,
+  weekGoals,
+  roles,
+  onClose,
+}: {
+  weekStart: string
+  weekBlocks: TimeBlock[]
+  weekGoals: WeeklyGoal[]
+  roles: Role[]
+  onClose: () => void
+}) {
+  const { enabled, permission, enable, disable } = useReminderSettings()
+  const [msg, setMsg] = useState<string | null>(null)
+  const pending = weekBlocks.filter((b) => !b.done)
+
+  const exportWeek = () => {
+    downloadFile(`plan-semanal-${weekStart}.ics`, buildICS(pending, roles, weekGoals))
+    setMsg(`Se descargó un archivo con ${pending.length} bloques.`)
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Calendario y avisos" description="Lleva tu plan semanal a Google Calendar y recibe avisos en el teléfono.">
+      <div className="space-y-5">
+        <section>
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <Smartphone size={16} className="text-primary" /> Google Calendar + notificaciones en el teléfono
+          </h3>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
+            <li>Descarga la semana como archivo de calendario.</li>
+            <li>
+              En una computadora, abre{' '}
+              <a href="https://calendar.google.com/calendar/r/settings/export" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
+                Google Calendar → Configuración → Importar
+              </a>{' '}
+              y elige el archivo.
+            </li>
+            <li>La app de Google Calendar te avisará en el teléfono {REMINDER_MINUTES} minutos antes de cada bloque.</li>
+          </ol>
+          <button onClick={exportWeek} disabled={!pending.length} className="btn-primary mt-3">
+            <Download size={16} /> Descargar semana (.ics) · {pending.length} bloques
+          </button>
+          {msg && <p className="mt-2 text-xs text-success">{msg}</p>}
+          <p className="mt-2 text-xs text-subtle">
+            También puedes enviar un bloque suelto: ábrelo en el horario y usa “Añadir a Google Calendar”. Funciona igual con Outlook y Apple Calendar.
+          </p>
+        </section>
+
+        <section className="border-t pt-5">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <BellRing size={16} className="text-primary" /> Avisos del navegador
+          </h3>
+          <p className="mt-1 text-sm text-muted">
+            Te avisamos {REMINDER_MINUTES} minutos antes de cada bloque mientras la app esté abierta (en la computadora o en el navegador del teléfono).
+          </p>
+          {permission === 'unsupported' ? (
+            <p className="mt-2 text-xs text-danger">Este navegador no admite notificaciones.</p>
+          ) : permission === 'denied' ? (
+            <p className="mt-2 text-xs text-danger">Bloqueaste las notificaciones para este sitio. Actívalas desde la configuración del navegador.</p>
+          ) : enabled ? (
+            <button onClick={disable} className="btn-secondary mt-3">Desactivar avisos</button>
+          ) : (
+            <button onClick={() => enable()} className="btn-secondary mt-3">
+              <BellRing size={16} /> Activar avisos
+            </button>
+          )}
+        </section>
+      </div>
     </Modal>
   )
 }

@@ -138,6 +138,8 @@ function RitualForm({
       mitDone,
       gratitude: gratitude.map((g) => g.trim()).filter(Boolean),
       word: word.trim(),
+      source: entry?.source,
+      deepMinutes: entry?.deepMinutes,
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
@@ -248,7 +250,7 @@ function RecentRituals({ rituals, onPick, current }: { rituals: DailyRitual[]; o
                 <div className="flex items-center justify-between text-xs text-subtle">
                   <span className="first-letter:uppercase">{formatDate(r.date, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
                   <span className="tabular">
-                    {r.sleepHours} h · energía {r.energyMorning}/5
+                    {r.sleepHours} h{r.energyMorning !== null && ` · energía ${r.energyMorning}/5`}{r.source === 'watch' && ' · ⌚'}
                   </span>
                 </div>
                 <p className={cn('mt-0.5 truncate text-sm font-medium', r.mitDone && 'text-subtle line-through')}>{r.mit || 'Sin tarea principal'}</p>

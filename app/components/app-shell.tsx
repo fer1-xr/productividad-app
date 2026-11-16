@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
+import { useBlockReminders } from '@/lib/use-reminders'
 import { cn } from '@/lib/utils'
 import { ThemeSwitcher, ThemeToggleButton } from './theme-toggle'
 
@@ -109,7 +110,7 @@ function SidebarContent({
             )}
             <ul className="space-y-0.5">
               {group.items.map(({ name, path, icon: Icon }) => {
-                const active = pathname === path
+                const active = pathname === path || (path !== '/' && pathname.startsWith(path + '/'))
                 return (
                   <li key={path}>
                     <Link
@@ -186,6 +187,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  useBlockReminders()
 
   // Preferencia del menú lateral (fijo o contraído), guardada en el navegador
   useEffect(() => {
@@ -205,7 +207,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => setMobileOpen(false), [pathname])
 
-  const current = allItems.find((i) => i.path === pathname)
+  const current = allItems.find((i) => i.path === pathname) ?? allItems.find((i) => i.path !== '/' && pathname.startsWith(i.path))
 
   return (
     <div className="min-h-screen">

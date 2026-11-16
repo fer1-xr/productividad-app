@@ -1,273 +1,236 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, Target, CheckCircle, Trash2 } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { CalendarClock, CheckCircle2, CircleDashed, Loader, Plus, Target, Trash2 } from 'lucide-react'
+import { Badge, EmptyState, Field, FormActions, Modal, PageHeader, Progress, Segmented, StatCard } from '../components/ui'
+import {
+  GOAL_TYPE_LABEL,
+  goalStatus,
+  PRIORITY_LABEL,
+  useStore,
+  type Goal,
+  type GoalType,
+  type Priority,
+} from '@/lib/store'
+import { cn, formatDate, parseISODate, toISODate } from '@/lib/utils'
+import { useOpenFromQuery } from '@/lib/use-open-from-query'
 
-interface Goal {
-  id: string
-  title: string
-  description: string
-  type: 'annual' | 'monthly' | 'weekly'
-  progress: number
-  status: 'not_started' | 'in_progress' | 'completed'
-  priority: 'low' | 'medium' | 'high'
-  dueDate: string
+type Filter = 'all' | GoalType | 'completed'
+
+const priorityTone = { high: 'danger', medium: 'warning', low: 'neutral' } as const
+const priorityOrder: Record<Priority, number> = { high: 0, medium: 1, low: 2 }
+
+const statusMeta = {
+  completed: { label: 'Completada', tone: 'success', icon: CheckCircle2 },
+  in_progress: { label: 'En progreso', tone: 'primary', icon: Loader },
+  not_started: { label: 'Sin iniciar', tone: 'neutral', icon: CircleDashed },
+} as const
+
+function daysLeft(iso: string) {
+  const ms = parseISODate(iso).getTime() - parseISODate(toISODate()).getTime()
+  return Math.round(ms / 86_400_000)
 }
 
-const mockGoals: Goal[] = [
-  {
-    id: '1',
-    title: 'Ahorrar 10,000',
-    description: 'Meta financiera anual',
-    type: 'annual',
-    progress: 60,
-    status: 'in_progress',
-    priority: 'high',
-    dueDate: '2024-12-31',
-  },
-  {
-    id: '2',
-    title: 'Completar certificación',
-    description: 'Certificación profesional en línea',
-    type: 'annual',
-    progress: 40,
-    status: 'in_progress',
-    priority: 'high',
-    dueDate: '2024-06-30',
-  },
-  {
-    id: '3',
-    title: 'Hacer ejercicio 4 veces',
-    description: 'Objetivo semanal de ejercicio',
-    type: 'weekly',
-    progress: 75,
-    status: 'in_progress',
-    priority: 'medium',
-    dueDate: '2024-02-02',
-  },
-]
-
 export default function GoalsPage() {
-  const [goals, setGoals] = useState<Goal[]>(mockGoals)
-  const [showForm, setShowForm] = useState(false)
+  const { goals, addGoal, deleteGoal, setGoalProgress } = useStore()
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState<Filter>('all')
+  useOpenFromQuery(() => setOpen(true))
 
-  const deleteGoal = (id: string) => {
-    setGoals(goals.filter((g) => g.id !== id))
-  }
+  const completed = goals.filter((g) => goalStatus(g) === 'completed')
+  const active = goals.filter((g) => goalStatus(g) !== 'completed')
+  const avg = goals.length ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0
 
-  const getStatusColor = (status: Goal['status']) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800'
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
+  const visible = goals
+    .filter((g) => {
+      if (filter === 'all') return goalStatus(g) !== 'completed'
+      if (filter === 'completed') return goalStatus(g) === 'completed'
+      return g.type === filter && goalStatus(g) !== 'completed'
+    })
+    .sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority] || a.dueDate.localeCompare(b.dueDate))
 
-  const getPriorityColor = (priority: Goal['priority']) => {
-    switch (priority) {
-      case 'high':
-        return 'border-red-400 bg-red-50'
-      case 'medium':
-        return 'border-yellow-400 bg-yellow-50'
-      default:
-        return 'border-green-400 bg-green-50'
-    }
-  }
-
-  const groupedGoals = {
-    annual: goals.filter((g) => g.type === 'annual'),
-    monthly: goals.filter((g) => g.type === 'monthly'),
-    weekly: goals.filter((g) => g.type === 'weekly'),
-  }
+  const count = (t: GoalType) => active.filter((g) => g.type === t).length
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 py-12">
-      <div className="flex justify-between items-center mb-12">
-        <div>
-          <h1 className="text-4xl font-bold mb-2">Metas y Objetivos</h1>
-          <p className="text-gray-600">Define y persigue tus objetivos de forma estructurada</p>
-        </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn btn-primary flex items-center gap-2"
-        >
-          <Plus size={20} /> Nueva Meta
-        </button>
+    <>
+      <PageHeader
+        title="Metas y objetivos"
+        description="Define tus metas y actualiza su progreso."
+        actions={
+          <button onClick={() => setOpen(true)} className="btn-primary">
+            <Plus size={16} /> Nueva meta
+          </button>
+        }
+      />
+
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StatCard label="Metas activas" icon={Target} value={active.length} />
+        <StatCard label="Completadas" icon={CheckCircle2} value={completed.length} />
+        <StatCard label="Progreso medio" value={`${avg}%`}>
+          <Progress value={avg} className="mt-3" label="Progreso medio" />
+        </StatCard>
       </div>
 
-      {showForm && (
-        <div className="card mb-8">
-          <h2 className="text-2xl font-bold mb-6">Crear Nueva Meta</h2>
-          <form className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Título de la Meta</label>
-              <input
-                type="text"
-                placeholder="Ej: Ahorrar 5000"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Descripción</label>
-              <textarea
-                placeholder="Describe tu meta"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                rows={3}
-              />
-            </div>
-            <div className="grid md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Tipo</label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600">
-                  <option value="annual">Anual</option>
-                  <option value="monthly">Mensual</option>
-                  <option value="weekly">Semanal</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Prioridad</label>
-                <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600">
-                  <option value="low">Baja</option>
-                  <option value="medium">Media</option>
-                  <option value="high">Alta</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Fecha Límite</label>
-                <input
-                  type="date"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <button type="submit" className="btn btn-primary">
-                Crear Meta
+      <div className="mb-4 overflow-x-auto">
+        <Segmented
+          ariaLabel="Filtrar metas"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: 'Activas', count: active.length },
+            { value: 'annual', label: 'Anuales', count: count('annual') },
+            { value: 'monthly', label: 'Mensuales', count: count('monthly') },
+            { value: 'weekly', label: 'Semanales', count: count('weekly') },
+            { value: 'completed', label: 'Completadas', count: completed.length },
+          ]}
+        />
+      </div>
+
+      {visible.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon={Target}
+            title={filter === 'completed' ? 'Aún no completaste metas' : 'No hay metas aquí'}
+            description="Las metas claras y medibles son más fáciles de alcanzar."
+            action={
+              <button onClick={() => setOpen(true)} className="btn-primary">
+                <Plus size={16} /> Nueva meta
               </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="btn btn-secondary"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
+            }
+          />
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {visible.map((g) => (
+            <GoalCard key={g.id} goal={g} onDelete={deleteGoal} onProgress={setGoalProgress} />
+          ))}
         </div>
       )}
 
-      {/* Annual Goals */}
-      {groupedGoals.annual.length > 0 && (
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <Target size={24} /> Metas Anuales
-          </h2>
-          <div className="space-y-4">
-            {groupedGoals.annual.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} onDelete={deleteGoal} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Monthly Goals */}
-      {groupedGoals.monthly.length > 0 && (
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <Target size={24} /> Objetivos Mensuales
-          </h2>
-          <div className="space-y-4">
-            {groupedGoals.monthly.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} onDelete={deleteGoal} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Weekly Goals */}
-      {groupedGoals.weekly.length > 0 && (
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <Target size={24} /> Objetivos Semanales
-          </h2>
-          <div className="space-y-4">
-            {groupedGoals.weekly.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} onDelete={deleteGoal} />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+      <Modal open={open} onClose={() => setOpen(false)} title="Nueva meta">
+        <GoalForm
+          onCancel={() => setOpen(false)}
+          onSubmit={(g) => {
+            addGoal(g)
+            setOpen(false)
+          }}
+        />
+      </Modal>
+    </>
   )
 }
 
 function GoalCard({
   goal,
   onDelete,
+  onProgress,
 }: {
   goal: Goal
   onDelete: (id: string) => void
+  onProgress: (id: string, p: number) => void
 }) {
-  const getPriorityColor = (priority: Goal['priority']) => {
-    switch (priority) {
-      case 'high':
-        return 'border-red-400 bg-red-50'
-      case 'medium':
-        return 'border-yellow-400 bg-yellow-50'
-      default:
-        return 'border-green-400 bg-green-50'
-    }
-  }
-
-  const getStatusColor = (status: Goal['status']) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800'
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
+  const status = statusMeta[goalStatus(goal)]
+  const StatusIcon = status.icon
+  const left = daysLeft(goal.dueDate)
+  const overdue = left < 0 && goal.progress < 100
 
   return (
-    <div className={`card border-l-4 ${getPriorityColor(goal.priority)}`}>
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="text-lg font-bold">{goal.title}</h3>
-            <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusColor(goal.status)}`}>
-              {goal.status === 'completed' ? '✓ Completado' : goal.status === 'in_progress' ? '⏳ En Progreso' : '⭕ No Iniciado'}
-            </span>
-          </div>
-          <p className="text-gray-600 text-sm mb-3">{goal.description}</p>
+    <article className="card flex flex-col p-5">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5">
+          <Badge tone={status.tone}>
+            <StatusIcon size={12} /> {status.label}
+          </Badge>
+          <Badge tone={priorityTone[goal.priority]}>Prioridad {PRIORITY_LABEL[goal.priority].toLowerCase()}</Badge>
         </div>
         <button
-          onClick={() => onDelete(goal.id)}
-          className="text-red-600 hover:text-red-700"
+          onClick={() => confirm(`¿Eliminar "${goal.title}"?`) && onDelete(goal.id)}
+          className="btn-icon -mr-2 -mt-1 hover:text-danger"
+          aria-label={`Eliminar ${goal.title}`}
         >
-          <Trash2 size={20} />
+          <Trash2 size={16} />
         </button>
       </div>
 
-      {/* Progress Bar */}
-      <div className="space-y-2">
-        <div className="flex justify-between text-sm">
-          <span className="text-gray-600">Progreso</span>
-          <span className="font-bold">{goal.progress}%</span>
+      <h3 className="font-semibold">{goal.title}</h3>
+      {goal.description && <p className="mt-1 text-sm text-muted">{goal.description}</p>}
+
+      <div className="mt-auto pt-5">
+        <div className="mb-2 flex items-center justify-between text-sm">
+          <span className="text-muted">Progreso</span>
+          <span className="tabular font-semibold">{goal.progress}%</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-3">
-          <div
-            className="bg-blue-600 h-3 rounded-full transition-all"
-            style={{ width: `${goal.progress}%` }}
-          />
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={goal.progress}
+          onChange={(e) => onProgress(goal.id, Number(e.target.value))}
+          className={cn(
+            'w-full cursor-pointer',
+            goal.progress >= 100 ? 'accent-[rgb(var(--success))]' : 'accent-[rgb(var(--primary))]',
+          )}
+          aria-label={`Actualizar progreso de ${goal.title}`}
+        />
+        <div className="mt-3 flex items-center justify-between border-t pt-3 text-xs">
+          <span className="text-subtle">{GOAL_TYPE_LABEL[goal.type]}</span>
+          <span className={overdue ? 'font-medium text-danger' : 'text-subtle'}>
+            <CalendarClock size={12} className="mr-1 inline" />
+            {formatDate(goal.dueDate, { day: 'numeric', month: 'short', year: 'numeric' })}
+            {goal.progress < 100 && (overdue ? ' · vencida' : left <= 7 ? ` · ${left} d` : '')}
+          </span>
         </div>
       </div>
+    </article>
+  )
+}
 
-      <p className="text-xs text-gray-500 mt-3">Vencimiento: {goal.dueDate}</p>
-    </div>
+function GoalForm({ onSubmit, onCancel }: { onSubmit: (g: Omit<Goal, 'id'>) => void; onCancel: () => void }) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [type, setType] = useState<GoalType>('monthly')
+  const [priority, setPriority] = useState<Priority>('medium')
+  const [dueDate, setDueDate] = useState(toISODate(new Date(Date.now() + 30 * 86_400_000)))
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!title.trim()) return
+    onSubmit({ title: title.trim(), description: description.trim(), type, priority, dueDate, progress: 0 })
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <Field label="Título">
+        <input className="input" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Ahorrar $5.000" />
+      </Field>
+      <Field label="Descripción">
+        <textarea className="input" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="¿Cómo sabrás que la lograste?" />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Tipo">
+          <select className="input" value={type} onChange={(e) => setType(e.target.value as GoalType)}>
+            {Object.entries(GOAL_TYPE_LABEL).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Prioridad">
+          <select className="input" value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+            {(['high', 'medium', 'low'] as const).map((p) => (
+              <option key={p} value={p}>
+                {PRIORITY_LABEL[p]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Fecha límite">
+          <input className="input" type="date" required value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        </Field>
+      </div>
+      <FormActions onCancel={onCancel} submitLabel="Crear meta" />
+    </form>
   )
 }

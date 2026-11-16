@@ -1,139 +1,336 @@
+'use client'
+
 import Link from 'next/link'
-import { ArrowRight, CheckCircle, DollarSign, Calendar, Target, FileText, Clock } from 'lucide-react'
+import {
+  ArrowRight,
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarDays,
+  Check,
+  CheckCircle2,
+  Clock,
+  Flame,
+  Plus,
+  Quote,
+  Target,
+  Wallet,
+} from 'lucide-react'
+import { Badge, Card, CardHeader, EmptyState, Progress, StatCard } from './components/ui'
+import { ExpenseBreakdown } from './components/expense-breakdown'
+import { EVENT_COLOR_CLASS, GOAL_TYPE_LABEL, goalStatus, habitStreak, useStore } from '@/lib/store'
+import { cn, formatDate, formatMoney, greeting, isSameMonth, toISODate, weekdayIndex } from '@/lib/utils'
 
-const features = [
-  {
-    icon: CheckCircle,
-    title: 'Gestión de Hábitos',
-    description: 'Construye hábitos efectivos con seguimiento diario y análisis de progreso',
-    path: '/habits',
-  },
-  {
-    icon: DollarSign,
-    title: 'Control de Finanzas',
-    description: 'Administra ingresos, gastos y presupuestos de forma inteligente',
-    path: '/finances',
-  },
-  {
-    icon: Calendar,
-    title: 'Cronograma Semanal',
-    description: 'Organiza tu tiempo con un calendario y horarios optimizados',
-    path: '/schedule',
-  },
-  {
-    icon: Target,
-    title: 'Metas y Objetivos',
-    description: 'Define metas anuales y objetivos mensuales con seguimiento integrado',
-    path: '/goals',
-  },
-  {
-    icon: FileText,
-    title: 'Notas y Frases',
-    description: 'Guarda anotaciones, recuerdos y frases inspiradoras',
-    path: '/notes',
-  },
-  {
-    icon: Clock,
-    title: 'Hábitos de Éxito',
-    description: 'Implementa los hábitos de la gente altamente efectiva',
-    path: '/habits',
-  },
-]
-
-export default function Home() {
+function CardLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <>
-      {/* Hero Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-purple-600 text-white py-20">
-        <div className="container max-w-7xl mx-auto px-4 text-center">
-          <h1 className="text-5xl font-bold mb-6">
-            Transforma Tu Productividad
-          </h1>
-          <p className="text-xl mb-8 max-w-2xl mx-auto">
-            Una plataforma completa para gestionar hábitos, finanzas, tiempo y metas.
-            Conviértete en la mejor versión de ti mismo.
+    <Link href={href} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+      {children} <ArrowRight size={12} />
+    </Link>
+  )
+}
+
+export default function DashboardPage() {
+  const { habits, transactions, goals, schedule, notes, toggleHabit } = useStore()
+
+  const now = new Date()
+  const today = toISODate(now)
+  const nowTime = now.toTimeString().slice(0, 5)
+
+  // Hábitos
+  const dailyHabits = habits.filter((h) => h.frequency === 'daily')
+  const doneToday = dailyHabits.filter((h) => h.completions.includes(today)).length
+  const habitPct = dailyHabits.length ? Math.round((doneToday / dailyHabits.length) * 100) : 0
+
+  // Finanzas (mes actual)
+  const monthTx = transactions.filter((t) => isSameMonth(t.date, now))
+  const income = monthTx.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const expenses = monthTx.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
+  const balance = income - expenses
+  const recentTx = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5)
+
+  // Metas
+  const activeGoals = goals.filter((g) => goalStatus(g) !== 'completed')
+  const avgProgress = goals.length ? Math.round(goals.reduce((s, g) => s + g.progress, 0) / goals.length) : 0
+  const topGoals = [...activeGoals].sort((a, b) => b.progress - a.progress).slice(0, 4)
+
+  // Agenda
+  const todayEvents = schedule
+    .filter((e) => e.day === weekdayIndex(now))
+    .sort((a, b) => a.startTime.localeCompare(b.startTime))
+  const nextEvent = todayEvents.find((e) => e.endTime > nowTime)
+
+  // Nota destacada
+  const featured = notes.find((n) => n.isPinned && n.category === 'quote') ?? notes.find((n) => n.isPinned)
+
+  const quickActions = [
+    { label: 'Hábito', href: '/habits?nuevo', icon: CheckCircle2 },
+    { label: 'Transacción', href: '/finances?nuevo', icon: Wallet },
+    { label: 'Meta', href: '/goals?nuevo', icon: Target },
+    { label: 'Evento', href: '/schedule?nuevo', icon: CalendarDays },
+  ]
+
+  return (
+    <div className="space-y-6">
+      {/* Encabezado */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm text-subtle first-letter:uppercase">
+            {now.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
-          <div className="flex gap-4 justify-center flex-wrap">
-            <button className="bg-white text-blue-600 px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition-colors flex items-center gap-2">
-              Comenzar Ahora <ArrowRight size={20} />
-            </button>
-            <button className="border-2 border-white text-white px-8 py-3 rounded-lg font-bold hover:bg-white hover:bg-opacity-10 transition-colors">
-              Conocer Más
-            </button>
-          </div>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight">{greeting(now)} 👋</h1>
+          <p className="mt-1 text-sm text-muted">Este es el resumen de tu día.</p>
         </div>
-      </section>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          {quickActions.map(({ label, href, icon: Icon }) => (
+            <Link key={href} href={href} className="btn-secondary">
+              <Plus size={14} className="text-subtle" />
+              <Icon size={16} className="hidden text-subtle sm:block" />
+              {label}
+            </Link>
+          ))}
+        </div>
+      </div>
 
-      {/* Features Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="container max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-16">
-            Características Principales
-          </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {features.map((feature, index) => {
-              const Icon = feature.icon
-              return (
-                <Link
-                  key={index}
-                  href={feature.path}
-                  className="card hover:shadow-md transition-shadow cursor-pointer group"
-                >
-                  <div className="text-blue-600 mb-4 group-hover:scale-110 transition-transform">
-                    <Icon size={40} />
+      {/* KPIs */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Hábitos de hoy"
+          icon={CheckCircle2}
+          value={
+            <>
+              {doneToday}
+              <span className="text-base font-medium text-subtle"> / {dailyHabits.length}</span>
+            </>
+          }
+          hint={`${habitPct}% completado`}
+        >
+          <Progress value={habitPct} className="mt-3" label="Hábitos completados hoy" />
+        </StatCard>
+        <StatCard
+          label="Balance del mes"
+          icon={Wallet}
+          value={formatMoney(balance)}
+          tone={balance >= 0 ? 'default' : 'danger'}
+          hint={
+            <span className="flex flex-wrap gap-x-3">
+              <span className="inline-flex items-center gap-0.5">
+                <ArrowUpRight size={12} className="text-success" /> {formatMoney(income)}
+              </span>
+              <span className="inline-flex items-center gap-0.5">
+                <ArrowDownRight size={12} className="text-danger" /> {formatMoney(expenses)}
+              </span>
+            </span>
+          }
+        />
+        <StatCard
+          label="Metas activas"
+          icon={Target}
+          value={activeGoals.length}
+          hint={`Progreso medio: ${avgProgress}%`}
+        />
+        <StatCard
+          label="Agenda de hoy"
+          icon={CalendarDays}
+          value={
+            <>
+              {todayEvents.length}
+              <span className="text-base font-medium text-subtle"> eventos</span>
+            </>
+          }
+          hint={nextEvent ? `Próximo: ${nextEvent.startTime} · ${nextEvent.title}` : 'No quedan eventos hoy'}
+        />
+      </div>
+
+      {/* Fila 1: hábitos + agenda */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Hábitos de hoy"
+            description="Marca lo que ya completaste"
+            icon={CheckCircle2}
+            action={<CardLink href="/habits">Ver todos</CardLink>}
+          />
+          {dailyHabits.length === 0 ? (
+            <EmptyState
+              icon={CheckCircle2}
+              title="Aún no tienes hábitos diarios"
+              action={<Link href="/habits?nuevo" className="btn-primary">Crear hábito</Link>}
+            />
+          ) : (
+            <ul className="divide-y">
+              {dailyHabits.map((h) => {
+                const done = h.completions.includes(today)
+                const streak = habitStreak(h)
+                return (
+                  <li key={h.id}>
+                    <button
+                      onClick={() => toggleHabit(h.id)}
+                      aria-pressed={done}
+                      className="flex w-full items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-surface-2/60"
+                    >
+                      <span
+                        className={cn(
+                          'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-colors',
+                          done ? 'border-success bg-success text-white' : 'border-border',
+                        )}
+                      >
+                        {done && <Check size={14} strokeWidth={3} />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className={cn('block text-sm font-medium', done && 'text-subtle line-through')}>
+                          {h.name}
+                        </span>
+                        <span className="block truncate text-xs text-subtle">{h.description}</span>
+                      </span>
+                      <span className="hidden text-xs text-subtle sm:inline">{h.category}</span>
+                      <Badge tone={streak > 0 ? 'warning' : 'neutral'}>
+                        <Flame size={12} /> {streak} {streak === 1 ? 'día' : 'días'}
+                      </Badge>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Agenda de hoy"
+            description={now.toLocaleDateString('es', { weekday: 'long' })}
+            icon={Clock}
+            action={<CardLink href="/schedule">Semana</CardLink>}
+          />
+          {todayEvents.length === 0 ? (
+            <EmptyState icon={CalendarDays} title="Día libre" description="No hay eventos programados para hoy." />
+          ) : (
+            <ol className="space-y-1 p-3">
+              {todayEvents.map((e) => {
+                const past = e.endTime <= nowTime
+                const live = e.startTime <= nowTime && e.endTime > nowTime
+                return (
+                  <li
+                    key={e.id}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg border-l-[3px] px-3 py-2.5',
+                      EVENT_COLOR_CLASS[e.color].bar,
+                      live ? EVENT_COLOR_CLASS[e.color].soft : 'bg-transparent',
+                      past && 'opacity-50',
+                    )}
+                  >
+                    <span className="tabular w-24 shrink-0 text-xs text-subtle">
+                      {e.startTime} – {e.endTime}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{e.title}</span>
+                    {live && <Badge tone="primary">Ahora</Badge>}
+                  </li>
+                )
+              })}
+            </ol>
+          )}
+        </Card>
+      </div>
+
+      {/* Fila 2: metas + gastos */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Metas en curso"
+            description={`${goals.length - activeGoals.length} de ${goals.length} completadas`}
+            icon={Target}
+            action={<CardLink href="/goals">Ver metas</CardLink>}
+          />
+          {topGoals.length === 0 ? (
+            <EmptyState icon={Target} title="Sin metas activas" description="¡Todo completado! Define una nueva meta." />
+          ) : (
+            <ul className="grid gap-x-8 gap-y-5 p-5 sm:grid-cols-2">
+              {topGoals.map((g) => (
+                <li key={g.id}>
+                  <div className="mb-2 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{g.title}</p>
+                      <p className="text-xs text-subtle">
+                        {GOAL_TYPE_LABEL[g.type]} · vence {formatDate(g.dueDate)}
+                      </p>
+                    </div>
+                    <span className="tabular text-sm font-semibold">{g.progress}%</span>
                   </div>
-                  <h3 className="text-xl font-bold mb-2">{feature.title}</h3>
-                  <p className="text-gray-600 mb-4">{feature.description}</p>
-                  <span className="text-blue-600 font-medium flex items-center gap-2">
-                    Explorar <ArrowRight size={16} />
+                  <Progress value={g.progress} label={`Progreso de ${g.title}`} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Gastos del mes"
+            description="Por categoría"
+            icon={Wallet}
+            action={<CardLink href="/finances">Finanzas</CardLink>}
+          />
+          <div className="p-5">
+            <ExpenseBreakdown transactions={monthTx} />
+          </div>
+        </Card>
+      </div>
+
+      {/* Fila 3: transacciones + frase */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader
+            title="Últimas transacciones"
+            icon={Wallet}
+            action={<CardLink href="/finances">Ver todas</CardLink>}
+          />
+          {recentTx.length === 0 ? (
+            <EmptyState icon={Wallet} title="Sin transacciones" />
+          ) : (
+            <ul className="divide-y">
+              {recentTx.map((t) => (
+                <li key={t.id} className="flex items-center gap-4 px-5 py-3">
+                  <span
+                    className={cn(
+                      'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                      t.type === 'income' ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger',
+                    )}
+                    aria-label={t.type === 'income' ? 'Ingreso' : 'Gasto'}
+                  >
+                    {t.type === 'income' ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
                   </span>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      </section>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{t.description}</span>
+                    <span className="block text-xs text-subtle">
+                      {t.category} · {formatDate(t.date)}
+                    </span>
+                  </span>
+                  <span
+                    className={cn(
+                      'tabular text-sm font-semibold',
+                      t.type === 'income' ? 'text-success' : 'text-foreground',
+                    )}
+                  >
+                    {t.type === 'income' ? '+' : '−'}
+                    {formatMoney(t.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
 
-      {/* Benefits Section */}
-      <section className="py-20">
-        <div className="container max-w-7xl mx-auto px-4">
-          <h2 className="text-4xl font-bold text-center mb-16">
-            Beneficios de Usar Productividad Pro
-          </h2>
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-blue-50 p-8 rounded-lg border-l-4 border-blue-600">
-              <h3 className="text-xl font-bold mb-3">📈 Mayor Productividad</h3>
-              <p className="text-gray-700">
-                Aumenta tu productividad hasta 40% con seguimiento inteligente
-              </p>
-            </div>
-            <div className="bg-purple-50 p-8 rounded-lg border-l-4 border-purple-600">
-              <h3 className="text-xl font-bold mb-3">💡 Mejor Toma de Decisiones</h3>
-              <p className="text-gray-700">
-                Datos y análisis para tomar decisiones informadas sobre finanzas
-              </p>
-            </div>
-            <div className="bg-green-50 p-8 rounded-lg border-l-4 border-green-600">
-              <h3 className="text-xl font-bold mb-3">🎯 Logra Tus Metas</h3>
-              <p className="text-gray-700">
-                Alcanza tus objetivos con un sistema probado de seguimiento
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="bg-blue-600 text-white py-16">
-        <div className="container max-w-7xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold mb-6">
-            ¿Listo para Cambiar Tu Vida?
-          </h2>
-          <button className="bg-white text-blue-600 px-8 py-3 rounded-lg font-bold hover:bg-gray-100 transition-colors">
-            Registrarse Gratis
-          </button>
-        </div>
-      </section>
-    </>
+        <Card className="flex flex-col">
+          <CardHeader title="Inspiración" icon={Quote} action={<CardLink href="/notes">Notas</CardLink>} />
+          {featured ? (
+            <figure className="flex flex-1 flex-col justify-center p-6">
+              <Quote size={28} className="mb-3 text-primary/40" aria-hidden />
+              <blockquote className="text-base leading-relaxed">{featured.content}</blockquote>
+              <figcaption className="mt-3 text-xs text-subtle">{featured.title}</figcaption>
+            </figure>
+          ) : (
+            <EmptyState icon={Quote} title="Fija una frase" description="Las notas fijadas aparecerán aquí." />
+          )}
+        </Card>
+      </div>
+    </div>
   )
 }

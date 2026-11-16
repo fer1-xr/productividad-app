@@ -216,7 +216,7 @@ theme: {
 1. Crea la página en `app/nueva-caracteristica/page.tsx`
 2. Actualiza los tipos en `types/index.ts`
 3. Agrega la tabla correspondiente en `database/schema.sql`
-4. Actualiza la navegación en `app/components/navbar.tsx`
+4. Actualiza la navegación en `app/components/app-shell.tsx`
 
 ## 🐛 Troubleshooting
 

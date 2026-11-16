@@ -2,45 +2,132 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* ------------------------------------------------------------------
+   Design tokens (RGB triplets so Tailwind can apply opacity)
+   ------------------------------------------------------------------ */
+@layer base {
+  :root {
+    color-scheme: light;
+    --background: 247 247 245;
+    --surface: 255 255 255;
+    --surface-2: 241 241 238;
+    --border: 228 227 222;
+    --foreground: 17 17 16;
+    --muted: 92 91 87;
+    --subtle: 137 135 129;
+
+    --primary: 79 70 229;
+    --primary-foreground: 255 255 255;
+    --primary-soft: 238 237 253;
+
+    --success: 0 120 60;
+    --success-soft: 226 245 234;
+    --warning: 180 110 0;
+    --warning-soft: 254 243 219;
+    --danger: 200 50 50;
+    --danger-soft: 253 233 233;
+
+    /* Categorical series (fixed order, validated palette) */
+    --series-1: 42 120 214;
+    --series-2: 235 104 52;
+    --series-3: 27 175 122;
+    --series-4: 237 161 0;
+    --series-5: 232 123 164;
+    --series-6: 0 131 0;
+    --series-7: 98 80 214;
+    --series-8: 227 73 72;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: 13 13 13;
+    --surface: 26 26 25;
+    --surface-2: 36 36 34;
+    --border: 50 50 47;
+    --foreground: 240 239 236;
+    --muted: 195 194 183;
+    --subtle: 137 135 129;
+
+    --primary: 129 120 245;
+    --primary-foreground: 255 255 255;
+    --primary-soft: 40 38 72;
+
+    --success: 52 199 110;
+    --success-soft: 20 48 32;
+    --warning: 250 178 25;
+    --warning-soft: 56 42 12;
+    --danger: 236 103 103;
+    --danger-soft: 60 24 24;
+
+    --series-1: 57 135 229;
+    --series-2: 217 89 38;
+    --series-3: 25 158 112;
+    --series-4: 201 133 0;
+    --series-5: 213 81 129;
+    --series-6: 12 163 12;
+    --series-7: 144 133 233;
+    --series-8: 230 103 103;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary/60 ring-offset-2 ring-offset-background;
+  }
 }
 
-html {
-  scroll-behavior: smooth;
-}
+/* ------------------------------------------------------------------
+   Components
+   ------------------------------------------------------------------ */
+@layer components {
+  .card {
+    @apply rounded-xl border bg-surface shadow-card;
+  }
 
-body {
-  background-color: #f9fafb;
-  color: #1f2937;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-}
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium
+      transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  .btn-secondary {
+    @apply btn border bg-surface text-foreground hover:bg-surface-2;
+  }
+  .btn-ghost {
+    @apply btn text-muted hover:bg-surface-2 hover:text-foreground;
+  }
+  .btn-danger {
+    @apply btn bg-danger text-white hover:bg-danger/90;
+  }
+  .btn-icon {
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition-colors
+      hover:bg-surface-2 hover:text-foreground;
+  }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+  .input {
+    @apply w-full rounded-lg border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-subtle
+      transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-foreground;
+  }
 
-.container {
-  @apply mx-auto px-4;
-}
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium;
+  }
 
-.btn {
-  @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
-}
-
-.btn-primary {
-  @apply btn bg-blue-600 text-white hover:bg-blue-700;
-}
-
-.btn-secondary {
-  @apply btn bg-gray-200 text-gray-800 hover:bg-gray-300;
-}
-
-.card {
-  @apply bg-white rounded-lg shadow-sm p-6 border border-gray-100;
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }

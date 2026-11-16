@@ -1,211 +1,129 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, Star, Trash2, Quote } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { Bell, FileText, Pin, Plus, Quote, Search, StickyNote, Trash2 } from 'lucide-react'
+import { Badge, EmptyState, Field, FormActions, Modal, PageHeader, Segmented } from '../components/ui'
+import { NOTE_CATEGORY_LABEL, useStore, type Note, type NoteCategory } from '@/lib/store'
+import { cn, formatDate } from '@/lib/utils'
+import { useOpenFromQuery } from '@/lib/use-open-from-query'
 
-interface Note {
-  id: string
-  title: string
-  content: string
-  category: 'note' | 'quote' | 'reminder'
-  isPinned: boolean
-  createdAt: string
+const categoryMeta: Record<NoteCategory, { icon: typeof Quote; tone: 'primary' | 'warning' | 'neutral' }> = {
+  note: { icon: FileText, tone: 'neutral' },
+  quote: { icon: Quote, tone: 'primary' },
+  reminder: { icon: Bell, tone: 'warning' },
 }
 
-const mockNotes: Note[] = [
-  {
-    id: '1',
-    title: 'La única forma de hacer un gran trabajo',
-    content: 'La única forma de hacer un gran trabajo es amar lo que haces. - Steve Jobs',
-    category: 'quote',
-    isPinned: true,
-    createdAt: '2024-01-20',
-  },
-  {
-    id: '2',
-    title: 'Recordatorio importante',
-    content: 'Revisar los objetivos mensuales y ajustarlos según sea necesario',
-    category: 'reminder',
-    isPinned: false,
-    createdAt: '2024-01-25',
-  },
-  {
-    id: '3',
-    title: 'Ideas para el nuevo proyecto',
-    content: 'Crear una aplicación que combine todas las herramientas de productividad',
-    category: 'note',
-    isPinned: false,
-    createdAt: '2024-01-26',
-  },
-]
-
 export default function NotesPage() {
-  const [notes, setNotes] = useState<Note[]>(mockNotes)
-  const [showForm, setShowForm] = useState(false)
-  const [filterCategory, setFilterCategory] = useState<'all' | 'note' | 'quote' | 'reminder'>('all')
+  const { notes, addNote, deleteNote, toggleNotePin } = useStore()
+  const [open, setOpen] = useState(false)
+  const [filter, setFilter] = useState<'all' | NoteCategory>('all')
+  const [query, setQuery] = useState('')
+  useOpenFromQuery(() => setOpen(true))
 
-  const deleteNote = (id: string) => {
-    setNotes(notes.filter((n) => n.id !== id))
-  }
+  const q = query.trim().toLowerCase()
+  const filtered = notes
+    .filter((n) => filter === 'all' || n.category === filter)
+    .filter((n) => !q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q))
+  const pinned = filtered.filter((n) => n.isPinned)
+  const others = filtered.filter((n) => !n.isPinned)
 
-  const togglePin = (id: string) => {
-    setNotes(
-      notes.map((n) =>
-        n.id === id ? { ...n, isPinned: !n.isPinned } : n
-      )
-    )
-  }
-
-  const filteredNotes = filterCategory === 'all'
-    ? notes
-    : notes.filter((n) => n.category === filterCategory)
-
-  const pinnedNotes = filteredNotes.filter((n) => n.isPinned)
-  const unpinnedNotes = filteredNotes.filter((n) => !n.isPinned)
+  const count = (c: NoteCategory) => notes.filter((n) => n.category === c).length
 
   return (
-    <div className="container max-w-7xl mx-auto px-4 py-12">
-      <div className="flex justify-between items-center mb-12">
-        <div>
-          <h1 className="text-4xl font-bold mb-2">Anotaciones y Frases</h1>
-          <p className="text-gray-600">Guarda tus pensamientos, frases inspiradoras y recordatorios</p>
+    <>
+      <PageHeader
+        title="Notas y frases"
+        description="Guarda ideas, frases inspiradoras y recordatorios."
+        actions={
+          <button onClick={() => setOpen(true)} className="btn-primary">
+            <Plus size={16} /> Nueva nota
+          </button>
+        }
+      />
+
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="overflow-x-auto">
+          <Segmented
+            ariaLabel="Filtrar notas"
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: 'Todas', count: notes.length },
+              { value: 'note', label: 'Notas', count: count('note') },
+              { value: 'quote', label: 'Frases', count: count('quote') },
+              { value: 'reminder', label: 'Recordatorios', count: count('reminder') },
+            ]}
+          />
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="btn btn-primary flex items-center gap-2"
-        >
-          <Plus size={20} /> Nueva Nota
-        </button>
+        <div className="relative sm:w-64">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-subtle" />
+          <input
+            className="input pl-8"
+            placeholder="Buscar notas…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Buscar notas"
+          />
+        </div>
       </div>
 
-      {showForm && (
-        <div className="card mb-8">
-          <h2 className="text-2xl font-bold mb-6">Crear Nueva Nota</h2>
-          <form className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Título</label>
-              <input
-                type="text"
-                placeholder="Ej: Frase inspiradora"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Contenido</label>
-              <textarea
-                placeholder="Escribe el contenido de tu nota"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                rows={4}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">Categoría</label>
-              <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600">
-                <option value="note">Nota</option>
-                <option value="quote">Frase Inspiradora</option>
-                <option value="reminder">Recordatorio</option>
-              </select>
-            </div>
-            <div className="flex gap-4">
-              <button type="submit" className="btn btn-primary">
-                Guardar Nota
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="btn btn-secondary"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
+      {filtered.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon={StickyNote}
+            title={q ? 'Sin resultados' : 'No hay notas en esta categoría'}
+            description={q ? `Nada coincide con “${query}”.` : undefined}
+          />
+        </div>
+      ) : (
+        <div className="space-y-8">
+          {pinned.length > 0 && (
+            <NoteSection title="Fijadas" notes={pinned} onDelete={deleteNote} onTogglePin={toggleNotePin} />
+          )}
+          {others.length > 0 && (
+            <NoteSection
+              title={pinned.length ? 'Otras' : 'Todas las notas'}
+              notes={others}
+              onDelete={deleteNote}
+              onTogglePin={toggleNotePin}
+            />
+          )}
         </div>
       )}
 
-      {/* Filters */}
-      <div className="flex gap-2 mb-8 flex-wrap">
-        <button
-          onClick={() => setFilterCategory('all')}
-          className={`px-4 py-2 rounded-lg font-medium ${
-            filterCategory === 'all'
-              ? 'btn btn-primary'
-              : 'btn btn-secondary'
-          }`}
-        >
-          Todas
-        </button>
-        <button
-          onClick={() => setFilterCategory('note')}
-          className={`px-4 py-2 rounded-lg font-medium ${
-            filterCategory === 'note'
-              ? 'btn btn-primary'
-              : 'btn btn-secondary'
-          }`}
-        >
-          Notas
-        </button>
-        <button
-          onClick={() => setFilterCategory('quote')}
-          className={`px-4 py-2 rounded-lg font-medium ${
-            filterCategory === 'quote'
-              ? 'btn btn-primary'
-              : 'btn btn-secondary'
-          }`}
-        >
-          Frases
-        </button>
-        <button
-          onClick={() => setFilterCategory('reminder')}
-          className={`px-4 py-2 rounded-lg font-medium ${
-            filterCategory === 'reminder'
-              ? 'btn btn-primary'
-              : 'btn btn-secondary'
-          }`}
-        >
-          Recordatorios
-        </button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Nueva nota">
+        <NoteForm
+          onCancel={() => setOpen(false)}
+          onSubmit={(n) => {
+            addNote(n)
+            setOpen(false)
+          }}
+        />
+      </Modal>
+    </>
+  )
+}
+
+function NoteSection({
+  title,
+  notes,
+  onDelete,
+  onTogglePin,
+}: {
+  title: string
+  notes: Note[]
+  onDelete: (id: string) => void
+  onTogglePin: (id: string) => void
+}) {
+  return (
+    <section>
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-subtle">{title}</h2>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {notes.map((n) => (
+          <NoteCard key={n.id} note={n} onDelete={onDelete} onTogglePin={onTogglePin} />
+        ))}
       </div>
-
-      {/* Pinned Notes */}
-      {pinnedNotes.length > 0 && (
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-6">⭐ Fijadas</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {pinnedNotes.map((note) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                onDelete={deleteNote}
-                onTogglePin={togglePin}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Unpinned Notes */}
-      {unpinnedNotes.length > 0 && (
-        <div>
-          <h2 className="text-2xl font-bold mb-6">Mis Notas</h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {unpinnedNotes.map((note) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                onDelete={deleteNote}
-                onTogglePin={togglePin}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {filteredNotes.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">No hay notas en esta categoría</p>
-        </div>
-      )}
-    </div>
+    </section>
   )
 }
 
@@ -218,50 +136,84 @@ function NoteCard({
   onDelete: (id: string) => void
   onTogglePin: (id: string) => void
 }) {
-  const getCategoryColor = (category: Note['category']) => {
-    switch (category) {
-      case 'quote':
-        return 'border-purple-200 bg-purple-50'
-      case 'reminder':
-        return 'border-orange-200 bg-orange-50'
-      default:
-        return 'border-blue-200 bg-blue-50'
-    }
-  }
-
-  const getCategoryEmoji = (category: Note['category']) => {
-    switch (category) {
-      case 'quote':
-        return '💬'
-      case 'reminder':
-        return '🔔'
-      default:
-        return '📝'
-    }
-  }
-
+  const meta = categoryMeta[note.category]
+  const Icon = meta.icon
   return (
-    <div className={`card border-2 ${getCategoryColor(note.category)} h-full flex flex-col`}>
-      <div className="flex items-start justify-between mb-2">
-        <span className="text-2xl">{getCategoryEmoji(note.category)}</span>
-        <div className="flex gap-2">
+    <article className="card group flex flex-col p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <Badge tone={meta.tone}>
+          <Icon size={12} /> {NOTE_CATEGORY_LABEL[note.category]}
+        </Badge>
+        <div className="-mr-2 flex">
           <button
             onClick={() => onTogglePin(note.id)}
-            className={`${note.isPinned ? 'text-yellow-500' : 'text-gray-400'} hover:text-yellow-500`}
+            className={cn('btn-icon', note.isPinned && 'text-primary')}
+            aria-pressed={note.isPinned}
+            aria-label={note.isPinned ? 'Desfijar nota' : 'Fijar nota'}
+            title={note.isPinned ? 'Desfijar' : 'Fijar'}
           >
-            <Star size={20} fill={note.isPinned ? 'currentColor' : 'none'} />
+            <Pin size={16} fill={note.isPinned ? 'currentColor' : 'none'} />
           </button>
           <button
-            onClick={() => onDelete(note.id)}
-            className="text-red-600 hover:text-red-700"
+            onClick={() => confirm(`¿Eliminar "${note.title}"?`) && onDelete(note.id)}
+            className="btn-icon hover:text-danger"
+            aria-label={`Eliminar ${note.title}`}
           >
-            <Trash2 size={20} />
+            <Trash2 size={16} />
           </button>
         </div>
       </div>
-      <h3 className="font-bold text-lg mb-2 flex-1">{note.title}</h3>
-      <p className="text-gray-700 text-sm mb-4 flex-1">{note.content}</p>
-      <p className="text-xs text-gray-500">{note.createdAt}</p>
-    </div>
+      <h3 className="font-semibold">{note.title}</h3>
+      <p className={cn('mt-1.5 flex-1 whitespace-pre-line text-sm text-muted', note.category === 'quote' && 'italic')}>
+        {note.content}
+      </p>
+      <p className="mt-4 text-xs text-subtle">{formatDate(note.createdAt, { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+    </article>
+  )
+}
+
+function NoteForm({
+  onSubmit,
+  onCancel,
+}: {
+  onSubmit: (n: { title: string; content: string; category: NoteCategory; isPinned: boolean }) => void
+  onCancel: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [category, setCategory] = useState<NoteCategory>('note')
+  const [isPinned, setPinned] = useState(false)
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    if (!title.trim() || !content.trim()) return
+    onSubmit({ title: title.trim(), content: content.trim(), category, isPinned })
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <Field label="Título">
+        <input className="input" required value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Idea para el proyecto" />
+      </Field>
+      <Field label="Contenido">
+        <textarea className="input" rows={5} required value={content} onChange={(e) => setContent(e.target.value)} placeholder="Escribe aquí…" />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
+        <Field label="Categoría">
+          <select className="input" value={category} onChange={(e) => setCategory(e.target.value as NoteCategory)}>
+            {Object.entries(NOTE_CATEGORY_LABEL).map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <label className="flex cursor-pointer items-center gap-2 py-2 text-sm">
+          <input type="checkbox" checked={isPinned} onChange={(e) => setPinned(e.target.checked)} className="h-4 w-4 accent-[rgb(var(--primary))]" />
+          Fijar arriba
+        </label>
+      </div>
+      <FormActions onCancel={onCancel} submitLabel="Guardar nota" />
+    </form>
   )
 }

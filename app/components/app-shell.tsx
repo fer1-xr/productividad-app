@@ -9,6 +9,8 @@ import {
   Gauge,
   LayoutDashboard,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
   RotateCcw,
   StickyNote,
   Target,
@@ -51,32 +53,47 @@ const navGroups: { label: string; items: NavItem[] }[] = [
 
 const allItems = navGroups.flatMap((g) => g.items)
 
-function Brand() {
+function Brand({ collapsed }: { collapsed?: boolean }) {
   return (
-    <Link href="/" className="flex items-center gap-2.5 px-2">
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+    <Link href="/" className={cn('flex items-center gap-2.5', collapsed ? 'mx-auto' : 'px-2')} title="Productividad Pro">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
         P
       </span>
-      <span className="text-sm font-semibold tracking-tight">Productividad Pro</span>
+      {!collapsed && <span className="text-sm font-semibold tracking-tight">Productividad Pro</span>}
     </Link>
   )
 }
 
-function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+function SidebarContent({
+  pathname,
+  onNavigate,
+  collapsed = false,
+  onToggleCollapse,
+}: {
+  pathname: string
+  onNavigate?: () => void
+  collapsed?: boolean
+  onToggleCollapse?: () => void
+}) {
   const resetDemo = useStore((s) => s.resetDemo)
+  const reset = () => {
+    if (confirm('¿Restablecer todos los datos de ejemplo? Se perderán tus cambios.')) resetDemo()
+  }
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center px-3">
-        <Brand />
+      <div className={cn('flex h-16 items-center', collapsed ? 'px-2' : 'px-3')}>
+        <Brand collapsed={collapsed} />
       </div>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4" aria-label="Principal">
-        {navGroups.map((group) => (
+      <nav className={cn('flex-1 overflow-y-auto py-4', collapsed ? 'space-y-3 px-2' : 'space-y-6 px-3')} aria-label="Principal">
+        {navGroups.map((group, gi) => (
           <div key={group.label}>
-            <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-subtle">
-              {group.label}
-            </p>
+            {collapsed ? (
+              gi > 0 && <div className="mx-2 mb-3 border-t" aria-hidden />
+            ) : (
+              <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-subtle">{group.label}</p>
+            )}
             <ul className="space-y-0.5">
               {group.items.map(({ name, path, icon: Icon }) => {
                 const active = pathname === path
@@ -86,15 +103,16 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
                       href={path}
                       onClick={onNavigate}
                       aria-current={active ? 'page' : undefined}
+                      aria-label={collapsed ? name : undefined}
+                      title={collapsed ? name : undefined}
                       className={cn(
-                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                        active
-                          ? 'bg-primary-soft text-primary'
-                          : 'text-muted hover:bg-surface-2 hover:text-foreground',
+                        'flex items-center rounded-lg py-2 text-sm font-medium transition-colors',
+                        collapsed ? 'justify-center px-0' : 'gap-3 px-3',
+                        active ? 'bg-primary-soft text-primary' : 'text-muted hover:bg-surface-2 hover:text-foreground',
                       )}
                     >
                       <Icon size={18} aria-hidden />
-                      {name}
+                      {!collapsed && name}
                     </Link>
                   </li>
                 )
@@ -104,19 +122,34 @@ function SidebarContent({ pathname, onNavigate }: { pathname: string; onNavigate
         ))}
       </nav>
 
-      <div className="space-y-3 border-t p-3">
-        <div>
-          <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">Apariencia</p>
-          <ThemeSwitcher />
-        </div>
-        <button
-          onClick={() => {
-            if (confirm('¿Restablecer todos los datos de ejemplo? Se perderán tus cambios.')) resetDemo()
-          }}
-          className="btn-ghost w-full justify-start px-2 text-xs"
-        >
-          <RotateCcw size={14} /> Restablecer datos de ejemplo
-        </button>
+      <div className={cn('space-y-3 border-t', collapsed ? 'p-2' : 'p-3')}>
+        {!collapsed && (
+          <div>
+            <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wider text-subtle">Apariencia</p>
+            <ThemeSwitcher />
+          </div>
+        )}
+        {collapsed ? (
+          <button onClick={reset} className="btn-icon mx-auto flex h-9 w-9" title="Restablecer datos de ejemplo" aria-label="Restablecer datos de ejemplo">
+            <RotateCcw size={16} />
+          </button>
+        ) : (
+          <button onClick={reset} className="btn-ghost w-full justify-start px-2 text-xs">
+            <RotateCcw size={14} /> Restablecer datos de ejemplo
+          </button>
+        )}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            aria-expanded={!collapsed}
+            title={collapsed ? 'Fijar menú expandido' : 'Contraer menú'}
+            className={cn('btn-ghost w-full text-xs', collapsed ? 'justify-center px-0' : 'justify-start px-2')}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={14} />}
+            {!collapsed && 'Contraer menú'}
+            <span className="sr-only">{collapsed ? 'Expandir menú' : ''}</span>
+          </button>
+        )}
       </div>
     </div>
   )
@@ -139,6 +172,17 @@ function PageSkeleton() {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+
+  // Preferencia del menú lateral (fijo o contraído), guardada en el navegador
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('sidebar-collapsed') === '1')
+  }, [])
+  const toggleCollapsed = () =>
+    setCollapsed((c) => {
+      localStorage.setItem('sidebar-collapsed', c ? '0' : '1')
+      return !c
+    })
   const [hydrated, setHydrated] = useState(false)
 
   // Cargar datos guardados en el navegador (evita desajustes de hidratación SSR)
@@ -153,8 +197,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       {/* Sidebar escritorio */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-surface lg:block">
-        <SidebarContent pathname={pathname} />
+      <aside
+        className={cn(
+          'fixed inset-y-0 left-0 z-30 hidden border-r bg-surface transition-[width] duration-200 lg:block',
+          collapsed ? 'w-16' : 'w-64',
+        )}
+      >
+        <SidebarContent pathname={pathname} collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
       </aside>
 
       {/* Sidebar móvil */}
@@ -174,7 +223,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <div className="lg:pl-64">
+      <div className={cn('transition-[padding] duration-200', collapsed ? 'lg:pl-16' : 'lg:pl-64')}>
         {/* Barra superior */}
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b bg-background/80 px-4 backdrop-blur sm:px-6 lg:px-8">
           <button

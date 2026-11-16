@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { daysAgo, toISODate, uid } from './utils'
+import { seedWellbeing, type DailyRitual, type WheelEntry } from './wellbeing'
 import { seedPlanner, SLOT_COUNT, type PlannerTask, type Role, type TimeBlock, type WeeklyGoal } from './planner'
 
 /* ------------------------------------------------------------------ */
@@ -184,7 +185,7 @@ function seed() {
     },
   ]
 
-  return { habits, transactions, goals, notes, ...seedPlanner() }
+  return { habits, transactions, goals, notes, ...seedPlanner(), ...seedWellbeing() }
 }
 
 /* ------------------------------------------------------------------ */
@@ -202,6 +203,8 @@ interface AppState {
   mission: string
   weeklyGoals: WeeklyGoal[]
   blocks: TimeBlock[]
+  rituals: DailyRitual[]
+  wheel: WheelEntry[]
 
   addHabit: (h: Omit<Habit, 'id' | 'completions' | 'createdAt'>) => void
   toggleHabit: (id: string, date?: string) => void
@@ -228,6 +231,10 @@ interface AppState {
   addNote: (n: Omit<Note, 'id' | 'createdAt'>) => void
   toggleNotePin: (id: string) => void
   deleteNote: (id: string) => void
+
+  saveRitual: (r: Omit<DailyRitual, 'id'>) => void
+  toggleMit: (date: string) => void
+  saveWheel: (entry: WheelEntry) => void
 
   resetDemo: () => void
 }
@@ -316,6 +323,20 @@ export const useStore = create<AppState>()(
       toggleNotePin: (id) =>
         set((s) => ({ notes: s.notes.map((n) => (n.id === id ? { ...n, isPinned: !n.isPinned } : n)) })),
       deleteNote: (id) => set((s) => ({ notes: s.notes.filter((n) => n.id !== id) })),
+
+      saveRitual: (r) =>
+        set((s) => {
+          const existing = s.rituals.find((x) => x.date === r.date)
+          return existing
+            ? { rituals: s.rituals.map((x) => (x.date === r.date ? { ...r, id: x.id } : x)) }
+            : { rituals: [...s.rituals, { ...r, id: uid() }].sort((a, b) => a.date.localeCompare(b.date)) }
+        }),
+      toggleMit: (date) =>
+        set((s) => ({ rituals: s.rituals.map((r) => (r.date === date ? { ...r, mitDone: !r.mitDone } : r)) })),
+      saveWheel: (entry) =>
+        set((s) => ({
+          wheel: [...s.wheel.filter((w) => w.month !== entry.month), entry].sort((a, b) => a.month.localeCompare(b.month)),
+        })),
 
       resetDemo: () => set(seed()),
     }),

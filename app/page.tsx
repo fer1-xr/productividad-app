@@ -10,6 +10,10 @@ import {
   CheckCircle2,
   Clock,
   Flame,
+  Crosshair,
+  Moon,
+  Sunrise,
+  Zap,
   Gauge,
   Plus,
   Quote,
@@ -32,7 +36,7 @@ function CardLink({ href, children }: { href: string; children: React.ReactNode 
 }
 
 export default function DashboardPage() {
-  const { habits, transactions, goals, notes, toggleHabit, roles, weeklyGoals, blocks } = useStore()
+  const { habits, transactions, goals, notes, toggleHabit, roles, weeklyGoals, blocks, rituals, toggleMit } = useStore()
 
   const now = new Date()
   const today = toISODate(now)
@@ -67,6 +71,8 @@ export default function DashboardPage() {
   // Nota destacada
   const featured = notes.find((n) => n.isPinned && n.category === 'quote') ?? notes.find((n) => n.isPinned)
 
+  const ritual = rituals.find((r) => r.date === today)
+
   const quickActions = [
     { label: 'Hábito', href: '/habits?nuevo', icon: CheckCircle2 },
     { label: 'Transacción', href: '/finances?nuevo', icon: Wallet },
@@ -95,6 +101,57 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Tu día (ritual matutino) */}
+      {ritual ? (
+        <Card className="flex flex-col gap-4 p-5 md:flex-row md:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-4">
+            <button
+              onClick={() => toggleMit(today)}
+              aria-pressed={ritual.mitDone}
+              aria-label={ritual.mitDone ? 'Marcar tarea más importante como pendiente' : 'Marcar tarea más importante como hecha'}
+              className={cn(
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition-colors',
+                ritual.mitDone ? 'border-success bg-success text-white' : 'border-primary/40 text-primary hover:bg-primary-soft',
+              )}
+            >
+              {ritual.mitDone ? <Check size={18} strokeWidth={3} /> : <Crosshair size={18} />}
+            </button>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wider text-subtle">Tarea más importante de hoy</p>
+              <p className={cn('truncate text-base font-semibold', ritual.mitDone && 'text-subtle line-through')}>
+                {ritual.mit || 'Sin definir'}
+              </p>
+              {ritual.focus && <p className="truncate text-xs text-muted">Foco: {ritual.focus}</p>}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge>
+              <Moon size={12} /> {ritual.sleepHours} h de sueño
+            </Badge>
+            <Badge>
+              <Zap size={12} /> Energía {ritual.energyMorning}/5
+            </Badge>
+            {ritual.word && <Badge tone="primary">“{ritual.word}”</Badge>}
+            <Link href="/ritual" className="btn-ghost px-2 py-1 text-xs">
+              Editar ritual
+            </Link>
+          </div>
+        </Card>
+      ) : (
+        <Card className="flex flex-col gap-4 border-primary/30 bg-primary-soft/40 p-5 sm:flex-row sm:items-center">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Sunrise size={18} />
+          </span>
+          <div className="flex-1">
+            <p className="font-semibold">Empieza el día con intención</p>
+            <p className="text-sm text-muted">Registra tu sueño y energía, elige tu foco y tu tarea más importante. Toma 2 minutos.</p>
+          </div>
+          <Link href="/ritual" className="btn-primary">
+            Hacer ritual matutino
+          </Link>
+        </Card>
+      )}
 
       {/* KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

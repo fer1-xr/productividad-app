@@ -6,6 +6,7 @@ import { Badge, Card, EmptyState, Field, FormActions, Modal, PageHeader, Segment
 import { FREQUENCY_LABEL, HABIT_CATEGORIES, habitStreak, useStore, type Frequency } from '@/lib/store'
 import { cn, daysAgo, parseISODate, toISODate, WEEKDAYS_SHORT, weekdayIndex } from '@/lib/utils'
 import { useOpenFromQuery } from '@/lib/use-open-from-query'
+import { HABIT_IDEAS } from '@/lib/wellbeing'
 
 const last7 = Array.from({ length: 7 }, (_, i) => daysAgo(6 - i))
 
@@ -187,20 +188,10 @@ function HabitForm({
     onSubmit({ name: name.trim(), description: description.trim(), frequency, category })
   }
 
+  const ideas = HABIT_IDEAS[category] ?? []
+
   return (
     <form onSubmit={submit} className="space-y-4">
-      <Field label="Nombre">
-        <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Meditación matutina" />
-      </Field>
-      <Field label="Descripción">
-        <textarea
-          className="input"
-          rows={3}
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="¿Por qué es importante este hábito?"
-        />
-      </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Frecuencia">
           <select className="input" value={frequency} onChange={(e) => setFrequency(e.target.value as Frequency)}>
@@ -219,6 +210,38 @@ function HabitForm({
           </select>
         </Field>
       </div>
+      {ideas.length > 0 && (
+        <div className="rounded-lg border bg-surface-2/50 p-3">
+          <p className="mb-2 text-xs font-medium text-muted">Ideas para {category.toLowerCase()} · elige una para empezar</p>
+          <div className="flex flex-wrap gap-1.5">
+            {ideas.map((idea) => (
+              <button
+                key={idea.name}
+                type="button"
+                onClick={() => {
+                  setName(idea.name)
+                  setDescription(idea.description)
+                }}
+                className={cn('badge border bg-surface py-1 text-muted hover:border-primary/50 hover:text-foreground', name === idea.name && 'border-primary bg-primary-soft text-primary')}
+              >
+                {idea.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <Field label="Nombre">
+        <input className="input" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Meditación matutina" />
+      </Field>
+      <Field label="Descripción">
+        <textarea
+          className="input"
+          rows={3}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="¿Por qué es importante este hábito?"
+        />
+      </Field>
       <FormActions onCancel={onCancel} submitLabel="Crear hábito" />
     </form>
   )

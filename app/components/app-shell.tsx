@@ -6,13 +6,16 @@ import { useEffect, useState, type ReactNode } from 'react'
 import {
   CalendarDays,
   CheckCircle2,
+  CircleDot,
   Gauge,
   LayoutDashboard,
   Menu,
+  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   RotateCcw,
   StickyNote,
+  Sunrise,
   Target,
   Wallet,
   X,
@@ -31,7 +34,10 @@ interface NavItem {
 const navGroups: { label: string; items: NavItem[] }[] = [
   {
     label: 'General',
-    items: [{ name: 'Resumen', path: '/', icon: LayoutDashboard }],
+    items: [
+      { name: 'Resumen', path: '/', icon: LayoutDashboard },
+      { name: 'Ritual matutino', path: '/ritual', icon: Sunrise },
+    ],
   },
   {
     label: 'Seguimiento',
@@ -40,6 +46,13 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { name: 'Rendimiento por rol', path: '/performance', icon: Gauge },
       { name: 'Hábitos', path: '/habits', icon: CheckCircle2 },
       { name: 'Metas', path: '/goals', icon: Target },
+    ],
+  },
+  {
+    label: 'Bienestar',
+    items: [
+      { name: 'Rueda de la vida', path: '/wheel', icon: CircleDot },
+      { name: 'Sueño y energía', path: '/sleep', icon: Moon },
     ],
   },
   {

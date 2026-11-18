@@ -4,11 +4,15 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
 import {
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   CircleDot,
+  Flame,
+  Flower2,
   Gauge,
   Grid2x2,
+  HeartHandshake,
   LayoutDashboard,
   Menu,
   Moon,
@@ -56,6 +60,15 @@ const navGroups: { label: string; items: NavItem[] }[] = [
     items: [
       { name: 'Rueda de la vida', path: '/wheel', icon: CircleDot },
       { name: 'Sueño y energía', path: '/sleep', icon: Moon },
+    ],
+  },
+  {
+    label: 'Espiritualidad',
+    items: [
+      { name: 'Oración', path: '/oracion', icon: HeartHandshake },
+      { name: 'Evangelio del día', path: '/evangelio', icon: BookOpen },
+      { name: '5 min. Espíritu Santo', path: '/espiritu-santo', icon: Flame },
+      { name: '5 min. con María', path: '/maria', icon: Flower2 },
     ],
   },
   {

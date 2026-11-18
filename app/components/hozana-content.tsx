@@ -1,6 +1,8 @@
 import { Fragment, type ReactNode } from 'react'
 import { ExternalLink, type LucideIcon } from 'lucide-react'
 import { PageHeader } from './ui'
+import { ReadingTools } from './reading-tools'
+import type { LinkedHabit } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { getPublications, type ContentNode, type Publication } from '@/lib/hozana'
 
@@ -52,6 +54,25 @@ function renderNodes(nodes: ContentNode[] | undefined, keyPrefix = ''): ReactNod
   })
 }
 
+function toPlainText(nodes: ContentNode[] | undefined): string {
+  return (nodes ?? [])
+    .map((node) => {
+      if (typeof node === 'string') return node
+      const tag = node.tag?.toLowerCase()
+      if (tag === 'br') return '\n'
+      const inner = toPlainText(node.content)
+      return tag && tag in BLOCK_CLASS ? `\n${inner}\n` : inner
+    })
+    .join('')
+}
+
+function plainText(p: Publication) {
+  return toPlainText(p.content)
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 export function PublicationBody({ publication }: { publication: Publication }) {
   return (
     <div className="whitespace-pre-line text-[15px] leading-relaxed text-muted">{renderNodes(publication.content)}</div>
@@ -84,6 +105,8 @@ export async function DailyReadingPage({
   description,
   communityId,
   communityUrl,
+  path,
+  habit,
   icon: Icon,
   tint,
 }: {
@@ -91,6 +114,9 @@ export async function DailyReadingPage({
   description: string
   communityId: number
   communityUrl: string
+  path: string
+  /** Hábito diario que se marca al terminar la lectura de hoy */
+  habit: LinkedHabit
   icon: LucideIcon
   tint: string
 }) {
@@ -102,6 +128,8 @@ export async function DailyReadingPage({
   }
 
   const [today, ...previous] = publications ?? []
+  const source = { label: title, path }
+  const tools = (p: Publication) => ({ source, publication: { id: p.id, title: p.title }, plainText: plainText(p) })
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -124,7 +152,9 @@ export async function DailyReadingPage({
               </div>
             </header>
             <div className="px-6 py-5">
-              <PublicationBody publication={today} />
+              <ReadingTools {...tools(today)} habit={habit}>
+                <PublicationBody publication={today} />
+              </ReadingTools>
               {today.author && <p className="mt-6 text-xs text-subtle">Publicado por {today.author} en Hozana</p>}
             </div>
           </article>
@@ -140,7 +170,9 @@ export async function DailyReadingPage({
                       {p.title}
                     </summary>
                     <div className="border-t px-5 py-4">
-                      <PublicationBody publication={p} />
+                      <ReadingTools {...tools(p)}>
+                        <PublicationBody publication={p} />
+                      </ReadingTools>
                     </div>
                   </details>
                 ))}

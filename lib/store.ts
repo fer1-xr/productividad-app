@@ -21,6 +21,14 @@ export interface Habit {
   /** Fechas (YYYY-MM-DD) en que se completó */
   completions: string[]
   createdAt: string
+  /** Identifica hábitos que otros módulos marcan solos (p. ej. una lectura diaria) */
+  key?: string
+}
+
+export interface LinkedHabit {
+  key: string
+  name: string
+  description: string
 }
 
 export type TransactionType = 'income' | 'expense'
@@ -85,7 +93,7 @@ export function computeProgress(g: Goal) {
 
 const withProgress = (g: Goal): Goal => ({ ...g, progress: computeProgress(g) })
 
-export type NoteCategory = 'note' | 'quote' | 'reminder'
+export type NoteCategory = 'note' | 'quote' | 'reminder' | 'highlight' | 'comment' | 'reading'
 
 export type Quadrant = 'q1' | 'q2' | 'q3' | 'q4'
 export interface EisenhowerTask {
@@ -95,6 +103,14 @@ export interface EisenhowerTask {
 }
 export type EisenhowerMatrix = Record<Quadrant, EisenhowerTask[]>
 
+/** Lectura de origen de una nota creada desde un módulo de espiritualidad */
+export interface NoteSource {
+  label: string
+  path: string
+  publicationId: string
+  publicationTitle: string
+}
+
 export interface Note {
   id: string
   title: string
@@ -102,6 +118,22 @@ export interface Note {
   category: NoteCategory
   isPinned: boolean
   createdAt: string
+  /** Texto resaltado de una lectura */
+  quote?: string
+  source?: NoteSource
+}
+
+/** Intención de oración del día y cuánto se rezó: 0 nada, 1 Padre Nuestro, 2 también el Ave María */
+export interface DailyIntention {
+  id: number
+  text: string
+  name: string
+  progress: 0 | 1 | 2
+}
+
+export interface DailyPrayers {
+  date: string
+  intentions: DailyIntention[]
 }
 
 /* ------------------------------------------------------------------ */
@@ -252,7 +284,9 @@ function seed() {
 
   const eisenhower: EisenhowerMatrix = { q1: [], q2: [], q3: [], q4: [] }
 
-  return { habits, transactions, goals, notes, eisenhower, ...seedPlanner(), ...seedWellbeing() }
+  const prayers: DailyPrayers | null = null
+
+  return { habits, transactions, goals, notes, eisenhower, prayers, ...seedPlanner(), ...seedWellbeing() }
 }
 
 /* ------------------------------------------------------------------ */
@@ -273,10 +307,12 @@ interface AppState {
   rituals: DailyRitual[]
   wheel: WheelEntry[]
   eisenhower: EisenhowerMatrix
+  prayers: DailyPrayers | null
 
   addHabit: (h: Omit<Habit, 'id' | 'completions' | 'createdAt'>) => void
   toggleHabit: (id: string, date?: string) => void
   deleteHabit: (id: string) => void
+  setLinkedHabitDone: (link: LinkedHabit, done: boolean) => void
 
   addTransaction: (t: WithoutId<Transaction>) => void
   deleteTransaction: (id: string) => void
@@ -303,12 +339,16 @@ interface AppState {
 
   addNote: (n: Omit<Note, 'id' | 'createdAt'>) => void
   toggleNotePin: (id: string) => void
+  updateNote: (id: string, patch: Partial<Pick<Note, 'title' | 'content'>>) => void
   deleteNote: (id: string) => void
 
   saveRitual: (r: Omit<DailyRitual, 'id'>) => void
   toggleMit: (date: string) => void
   saveWheel: (entry: WheelEntry) => void
   importSleep: (nights: ImportedNight[]) => { created: number; updated: number }
+
+  setDailyIntentions: (p: DailyPrayers) => void
+  advancePrayer: (id: number) => void
 
   addEisenhowerTask: (q: Quadrant, text: string) => void
   toggleEisenhowerTask: (q: Quadrant, id: string) => void
@@ -338,6 +378,28 @@ export const useStore = create<AppState>()(
                 },
           ),
         })),
+      setLinkedHabitDone: (link, done) =>
+        set((s) => {
+          const today = toISODate()
+          const existing = s.habits.find((h) => h.key === link.key)
+          if (!existing) {
+            if (!done) return {}
+            const habit: Habit = {
+              id: uid(),
+              key: link.key,
+              name: link.name,
+              description: link.description,
+              frequency: 'daily',
+              category: 'Espiritualidad',
+              completions: [today],
+              createdAt: today,
+            }
+            return { habits: [...s.habits, habit] }
+          }
+          const completions = existing.completions.filter((d) => d !== today)
+          if (done) completions.push(today)
+          return { habits: s.habits.map((h) => (h === existing ? { ...h, completions } : h)) }
+        }),
       deleteHabit: (id) => set((s) => ({ habits: s.habits.filter((h) => h.id !== id) })),
 
       addTransaction: (t) => set((s) => ({ transactions: [{ ...t, id: uid() }, ...s.transactions] })),
@@ -433,6 +495,7 @@ export const useStore = create<AppState>()(
       deleteBlock: (id) => set((s) => ({ blocks: s.blocks.filter((b) => b.id !== id) })),
 
       addNote: (n) => set((s) => ({ notes: [{ ...n, id: uid(), createdAt: toISODate() }, ...s.notes] })),
+      updateNote: (id, patch) => set((s) => ({ notes: s.notes.map((n) => (n.id === id ? { ...n, ...patch } : n)) })),
       toggleNotePin: (id) =>
         set((s) => ({ notes: s.notes.map((n) => (n.id === id ? { ...n, isPinned: !n.isPinned } : n)) })),
       deleteNote: (id) => set((s) => ({ notes: s.notes.filter((n) => n.id !== id) })),
@@ -479,6 +542,21 @@ export const useStore = create<AppState>()(
         set((s) => ({
           wheel: [...s.wheel.filter((w) => w.month !== entry.month), entry].sort((a, b) => a.month.localeCompare(b.month)),
         })),
+
+      setDailyIntentions: (p) => set({ prayers: p }),
+      advancePrayer: (id) =>
+        set((s) =>
+          s.prayers
+            ? {
+                prayers: {
+                  ...s.prayers,
+                  intentions: s.prayers.intentions.map((i) =>
+                    i.id === id ? { ...i, progress: Math.min(2, i.progress + 1) as DailyIntention['progress'] } : i,
+                  ),
+                },
+              }
+            : {},
+        ),
 
       addEisenhowerTask: (q, text) =>
         set((s) => ({ eisenhower: { ...s.eisenhower, [q]: [...s.eisenhower[q], { id: uid(), text, done: false }] } })),
@@ -569,9 +647,15 @@ export const NOTE_CATEGORY_LABEL: Record<NoteCategory, string> = {
   note: 'Nota',
   quote: 'Frase',
   reminder: 'Recordatorio',
+  highlight: 'Resaltado',
+  comment: 'Comentario',
+  reading: 'Lectura guardada',
 }
 
-export const HABIT_CATEGORIES = ['Salud', 'Productividad', 'Finanzas', 'Aprendizaje', 'Relaciones']
+/** Categorías que se crean a mano desde Notas; las demás nacen en las lecturas */
+export const MANUAL_NOTE_CATEGORIES: NoteCategory[] = ['note', 'quote', 'reminder']
+
+export const HABIT_CATEGORIES = ['Salud', 'Productividad', 'Finanzas', 'Aprendizaje', 'Relaciones', 'Espiritualidad']
 export const EXPENSE_CATEGORIES = ['Alimentación', 'Transporte', 'Salud', 'Entretenimiento', 'Servicios', 'Otros']
 export const INCOME_CATEGORIES = ['Salario', 'Freelance', 'Inversiones', 'Otros']
 

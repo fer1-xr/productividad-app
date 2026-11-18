@@ -65,7 +65,7 @@ interface RawIntention {
 }
 
 /** La API entrega 3 intenciones por llamada; se piden más excluyendo las ya recibidas, como hace la app de Hozana. */
-export async function getIntentions(rounds = 4): Promise<Intention[]> {
+export async function getIntentions(rounds = 1): Promise<Intention[]> {
   const data: RawIntention[] = []
   for (let r = 0; r < rounds; r++) {
     const except = data.map((i) => `exceptIntentionsIds%5B%5D=${i.id}`).join('&')

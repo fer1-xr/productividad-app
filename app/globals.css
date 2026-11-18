@@ -131,3 +131,32 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* Resaltados guardados de las lecturas (CSS Custom Highlight API) */
+::highlight(saved-highlight) {
+  background-color: rgb(250 204 21 / 0.45);
+}
+.dark ::highlight(saved-highlight) {
+  background-color: rgb(250 204 21 / 0.3);
+  color: rgb(255 255 255);
+}
+
+/* Llama de la vela de oración */
+@keyframes candle-flicker {
+  0%,
+  100% {
+    transform: scale(1, 1) rotate(-2deg);
+  }
+  50% {
+    transform: scale(1.06, 0.94) rotate(2deg);
+  }
+}
+.candle-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .candle-flame {
+    animation: candle-flicker 1.6s ease-in-out infinite;
+  }
+}

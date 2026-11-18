@@ -11,6 +11,8 @@ export default function MariaPage() {
       description="La meditación diaria de la comunidad Los 5 minutos de María en Hozana."
       communityId={HOZANA_COMMUNITIES.maria.id}
       communityUrl={HOZANA_COMMUNITIES.maria.url}
+      path="/maria"
+      habit={{ key: 'lectura:maria', name: '5 minutos con la Virgen María', description: 'Meditación diaria' }}
       icon={Flower2}
       tint="bg-sky-50 text-sky-800 dark:bg-sky-950/30 dark:text-sky-200"
     />

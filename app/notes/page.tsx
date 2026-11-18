@@ -1,9 +1,10 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, type FormEvent } from 'react'
-import { Bell, FileText, Pin, Plus, Quote, Search, StickyNote, Trash2 } from 'lucide-react'
+import { Bell, BookmarkCheck, FileText, Highlighter, MessageSquare, Pin, Plus, Quote, Search, StickyNote, Trash2 } from 'lucide-react'
 import { Badge, EmptyState, Field, FormActions, Modal, PageHeader, Segmented } from '../components/ui'
-import { NOTE_CATEGORY_LABEL, useStore, type Note, type NoteCategory } from '@/lib/store'
+import { MANUAL_NOTE_CATEGORIES, NOTE_CATEGORY_LABEL, useStore, type Note, type NoteCategory } from '@/lib/store'
 import { cn, formatDate } from '@/lib/utils'
 import { useOpenFromQuery } from '@/lib/use-open-from-query'
 
@@ -11,7 +12,19 @@ const categoryMeta: Record<NoteCategory, { icon: typeof Quote; tone: 'primary' |
   note: { icon: FileText, tone: 'neutral' },
   quote: { icon: Quote, tone: 'primary' },
   reminder: { icon: Bell, tone: 'warning' },
+  highlight: { icon: Highlighter, tone: 'warning' },
+  comment: { icon: MessageSquare, tone: 'primary' },
+  reading: { icon: BookmarkCheck, tone: 'neutral' },
 }
+
+const FILTERS: { value: NoteCategory; label: string }[] = [
+  { value: 'note', label: 'Notas' },
+  { value: 'quote', label: 'Frases' },
+  { value: 'reminder', label: 'Recordatorios' },
+  { value: 'highlight', label: 'Resaltados' },
+  { value: 'comment', label: 'Comentarios' },
+  { value: 'reading', label: 'Lecturas' },
+]
 
 export default function NotesPage() {
   const { notes, addNote, deleteNote, toggleNotePin } = useStore()
@@ -23,7 +36,7 @@ export default function NotesPage() {
   const q = query.trim().toLowerCase()
   const filtered = notes
     .filter((n) => filter === 'all' || n.category === filter)
-    .filter((n) => !q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q))
+    .filter((n) => !q || [n.title, n.content, n.quote ?? ''].some((t) => t.toLowerCase().includes(q)))
   const pinned = filtered.filter((n) => n.isPinned)
   const others = filtered.filter((n) => !n.isPinned)
 
@@ -33,7 +46,7 @@ export default function NotesPage() {
     <>
       <PageHeader
         title="Notas y frases"
-        description="Guarda ideas, frases inspiradoras y recordatorios."
+        description="Guarda ideas, frases y recordatorios. Aquí también llegan tus resaltados, comentarios y lecturas guardadas."
         actions={
           <button onClick={() => setOpen(true)} className="btn-primary">
             <Plus size={16} /> Nueva nota
@@ -48,10 +61,10 @@ export default function NotesPage() {
             value={filter}
             onChange={setFilter}
             options={[
-              { value: 'all', label: 'Todas', count: notes.length },
-              { value: 'note', label: 'Notas', count: count('note') },
-              { value: 'quote', label: 'Frases', count: count('quote') },
-              { value: 'reminder', label: 'Recordatorios', count: count('reminder') },
+              { value: 'all' as const, label: 'Todas', count: notes.length },
+              ...FILTERS.filter((f) => MANUAL_NOTE_CATEGORIES.includes(f.value) || count(f.value) > 0 || filter === f.value).map(
+                (f) => ({ ...f, count: count(f.value) }),
+              ),
             ]}
           />
         </div>
@@ -138,6 +151,8 @@ function NoteCard({
 }) {
   const meta = categoryMeta[note.category]
   const Icon = meta.icon
+  const [expanded, setExpanded] = useState(false)
+  const long = note.category === 'reading' && note.content.length > 400
   return (
     <article className="card group flex flex-col p-5">
       <div className="mb-3 flex items-center justify-between">
@@ -164,9 +179,34 @@ function NoteCard({
         </div>
       </div>
       <h3 className="font-semibold">{note.title}</h3>
-      <p className={cn('mt-1.5 flex-1 whitespace-pre-line text-sm text-muted', note.category === 'quote' && 'italic')}>
-        {note.content}
-      </p>
+      {note.quote && (
+        <blockquote className="mt-2 whitespace-pre-line rounded-md border-l-2 border-yellow-400 bg-yellow-100/60 px-3 py-2 text-sm text-foreground dark:bg-yellow-400/10">
+          {note.quote}
+        </blockquote>
+      )}
+      <div className="flex-1">
+        {note.content && (
+          <p
+            className={cn(
+              'mt-1.5 whitespace-pre-line text-sm text-muted',
+              note.category === 'quote' && 'italic',
+              long && !expanded && 'line-clamp-6',
+            )}
+          >
+            {note.content}
+          </p>
+        )}
+        {long && (
+          <button onClick={() => setExpanded((e) => !e)} className="mt-1 text-xs font-medium text-primary">
+            {expanded ? 'Mostrar menos' : 'Leer completo'}
+          </button>
+        )}
+      </div>
+      {note.source && (
+        <Link href={note.source.path} className="mt-3 truncate text-xs font-medium text-primary hover:underline">
+          {note.source.label} →
+        </Link>
+      )}
       <p className="mt-4 text-xs text-subtle">{formatDate(note.createdAt, { day: 'numeric', month: 'long', year: 'numeric' })}</p>
     </article>
   )
@@ -201,9 +241,9 @@ function NoteForm({
       <div className="grid gap-4 sm:grid-cols-2 sm:items-end">
         <Field label="Categoría">
           <select className="input" value={category} onChange={(e) => setCategory(e.target.value as NoteCategory)}>
-            {Object.entries(NOTE_CATEGORY_LABEL).map(([v, l]) => (
+            {MANUAL_NOTE_CATEGORIES.map((v) => (
               <option key={v} value={v}>
-                {l}
+                {NOTE_CATEGORY_LABEL[v]}
               </option>
             ))}
           </select>

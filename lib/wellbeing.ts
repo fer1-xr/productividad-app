@@ -93,6 +93,11 @@ export const HABIT_IDEAS: Record<string, { name: string; description: string }[]
     { name: 'Cena sin pantallas', description: 'Tiempo de calidad en familia' },
     { name: 'Agradecer a alguien', description: 'Un mensaje de gratitud' },
   ],
+  Espiritualidad: [
+    { name: 'Rezar el Rosario', description: 'Los misterios del día' },
+    { name: 'Examen de conciencia', description: 'Unos minutos antes de dormir' },
+    { name: 'Rezar por tres intenciones', description: 'Un Padre Nuestro y un Ave María por cada una' },
+  ],
 }
 
 /* ---------------------------- Datos de ejemplo ---------------------------- */

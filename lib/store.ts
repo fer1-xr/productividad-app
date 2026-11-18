@@ -88,7 +88,12 @@ const withProgress = (g: Goal): Goal => ({ ...g, progress: computeProgress(g) })
 export type NoteCategory = 'note' | 'quote' | 'reminder'
 
 export type Quadrant = 'q1' | 'q2' | 'q3' | 'q4'
-export type EisenhowerMatrix = Record<Quadrant, string>
+export interface EisenhowerTask {
+  id: string
+  text: string
+  done: boolean
+}
+export type EisenhowerMatrix = Record<Quadrant, EisenhowerTask[]>
 
 export interface Note {
   id: string
@@ -245,7 +250,7 @@ function seed() {
     },
   ]
 
-  const eisenhower: EisenhowerMatrix = { q1: '', q2: '', q3: '', q4: '' }
+  const eisenhower: EisenhowerMatrix = { q1: [], q2: [], q3: [], q4: [] }
 
   return { habits, transactions, goals, notes, eisenhower, ...seedPlanner(), ...seedWellbeing() }
 }
@@ -305,7 +310,10 @@ interface AppState {
   saveWheel: (entry: WheelEntry) => void
   importSleep: (nights: ImportedNight[]) => { created: number; updated: number }
 
-  setEisenhower: (q: Quadrant, text: string) => void
+  addEisenhowerTask: (q: Quadrant, text: string) => void
+  toggleEisenhowerTask: (q: Quadrant, id: string) => void
+  updateEisenhowerTask: (q: Quadrant, id: string, text: string) => void
+  deleteEisenhowerTask: (q: Quadrant, id: string) => void
 
   resetDemo: () => void
 }
@@ -472,13 +480,24 @@ export const useStore = create<AppState>()(
           wheel: [...s.wheel.filter((w) => w.month !== entry.month), entry].sort((a, b) => a.month.localeCompare(b.month)),
         })),
 
-      setEisenhower: (q, text) => set((s) => ({ eisenhower: { ...s.eisenhower, [q]: text } })),
+      addEisenhowerTask: (q, text) =>
+        set((s) => ({ eisenhower: { ...s.eisenhower, [q]: [...s.eisenhower[q], { id: uid(), text, done: false }] } })),
+      toggleEisenhowerTask: (q, id) =>
+        set((s) => ({
+          eisenhower: { ...s.eisenhower, [q]: s.eisenhower[q].map((t) => (t.id === id ? { ...t, done: !t.done } : t)) },
+        })),
+      updateEisenhowerTask: (q, id, text) =>
+        set((s) => ({
+          eisenhower: { ...s.eisenhower, [q]: s.eisenhower[q].map((t) => (t.id === id ? { ...t, text } : t)) },
+        })),
+      deleteEisenhowerTask: (q, id) =>
+        set((s) => ({ eisenhower: { ...s.eisenhower, [q]: s.eisenhower[q].filter((t) => t.id !== id) } })),
 
       resetDemo: () => set(seed()),
     }),
     {
       name: 'productividad-pro',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage),
       // v1 → v2: el cronograma de eventos se reemplaza por el planificador semanal
       migrate: (persisted, version) => {
@@ -486,6 +505,18 @@ export const useStore = create<AppState>()(
         if (version < 2) {
           delete state.schedule
           Object.assign(state, seedPlanner())
+        }
+        // v2 → v3: cada cuadrante pasa de texto libre a lista de tareas (una por línea)
+        if (version < 3 && state.eisenhower) {
+          const old = state.eisenhower as Record<string, unknown>
+          state.eisenhower = Object.fromEntries(
+            Object.entries(old).map(([q, v]) => [
+              q,
+              typeof v === 'string'
+                ? v.split('\n').map((l) => l.trim()).filter(Boolean).map((text) => ({ id: uid(), text, done: false }))
+                : v,
+            ]),
+          )
         }
         return state as unknown as AppState
       },

@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CircleDot,
   Gauge,
+  Grid2x2,
   LayoutDashboard,
   Menu,
   Moon,
@@ -47,6 +48,7 @@ const navGroups: { label: string; items: NavItem[] }[] = [
       { name: 'Rendimiento por rol', path: '/performance', icon: Gauge },
       { name: 'Hábitos', path: '/habits', icon: CheckCircle2 },
       { name: 'Metas', path: '/goals', icon: Target },
+      { name: 'Matriz Eisenhower', path: '/eisenhower', icon: Grid2x2 },
     ],
   },
   {

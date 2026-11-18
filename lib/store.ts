@@ -87,6 +87,9 @@ const withProgress = (g: Goal): Goal => ({ ...g, progress: computeProgress(g) })
 
 export type NoteCategory = 'note' | 'quote' | 'reminder'
 
+export type Quadrant = 'q1' | 'q2' | 'q3' | 'q4'
+export type EisenhowerMatrix = Record<Quadrant, string>
+
 export interface Note {
   id: string
   title: string
@@ -242,7 +245,9 @@ function seed() {
     },
   ]
 
-  return { habits, transactions, goals, notes, ...seedPlanner(), ...seedWellbeing() }
+  const eisenhower: EisenhowerMatrix = { q1: '', q2: '', q3: '', q4: '' }
+
+  return { habits, transactions, goals, notes, eisenhower, ...seedPlanner(), ...seedWellbeing() }
 }
 
 /* ------------------------------------------------------------------ */
@@ -262,6 +267,7 @@ interface AppState {
   blocks: TimeBlock[]
   rituals: DailyRitual[]
   wheel: WheelEntry[]
+  eisenhower: EisenhowerMatrix
 
   addHabit: (h: Omit<Habit, 'id' | 'completions' | 'createdAt'>) => void
   toggleHabit: (id: string, date?: string) => void
@@ -298,6 +304,8 @@ interface AppState {
   toggleMit: (date: string) => void
   saveWheel: (entry: WheelEntry) => void
   importSleep: (nights: ImportedNight[]) => { created: number; updated: number }
+
+  setEisenhower: (q: Quadrant, text: string) => void
 
   resetDemo: () => void
 }
@@ -463,6 +471,8 @@ export const useStore = create<AppState>()(
         set((s) => ({
           wheel: [...s.wheel.filter((w) => w.month !== entry.month), entry].sort((a, b) => a.month.localeCompare(b.month)),
         })),
+
+      setEisenhower: (q, text) => set((s) => ({ eisenhower: { ...s.eisenhower, [q]: text } })),
 
       resetDemo: () => set(seed()),
     }),
